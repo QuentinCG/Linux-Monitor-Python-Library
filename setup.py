@@ -11,7 +11,7 @@ setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     url='https://github.com/QuentinCG/Linux-Monitor-Python-Library',
-    packages=['LinuxMonitor'],
+    packages=['linux_monitor'],
     author='Quentin Comte-Gaz',
     author_email='quentin@comte-gaz.com',
     license='MIT',
