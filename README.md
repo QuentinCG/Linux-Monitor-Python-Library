@@ -21,7 +21,7 @@ Non-exhaustive list of shell commands:
 ## How to install (python script and shell)
 
   - Install package calling `pip install linux-monitor` (or `python setup.py install` from the root of this repository)
-  - Copy and edit [config-example.json file](https://github.com/QuentinCG/Linux-Monitor-Python-Library/blob/master/config-example.json) depending on your need
+  - Copy and edit [config-example.json file](https://github.com/QuentinCG/Linux-Monitor-Python-Library/blob/master/config-example.json) depending on your need (on first launch, remove all `restart_command` from config file to prevent potential looping service restart issues on your server in case your config file is not well configured)
   - Add rights to user launching the library depending on what you want it to do
 ```sh
 # Only if this library should be able to reboot the server on demand:
