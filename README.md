@@ -21,8 +21,22 @@ Non-exhaustive list of shell commands:
 ## How to install (python script and shell)
 
   - Install package calling `pip install linux-monitor` (or `python setup.py install` from the root of this repository)
-  - Connect your GSM module to a serial port
-  - Get the port name (you can find it out by calling `python linux_monitor/linux_monitor.py --help` from the root of this repository)
+  - Copy and edit [config-example.json file](https://github.com/QuentinCG/Linux-Monitor-Python-Library/blob/master/config-example.json) depending on your need
+  - Add rights to user launching the library depending on what you want it to do
+```sh
+# Only if this library should be able to reboot the server on demand:
+echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /sbin/reboot" >> /etc/sudoers.d/USERNAME_HERE
+# Only if this library should be able to kill a process on demand:
+echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/kill" >> /etc/sudoers.d/USERNAME_HERE
+
+# Add also all processes added in your config JSON file you want the library to be able to execute
+# Example for the existing config-example.json file:
+echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/systemctl" >> /etc/sudoers.d/USERNAME_HERE
+echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/apache2" >> /etc/sudoers.d/USERNAME_HERE
+echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/ssh" >> /etc/sudoers.d/USERNAME_HERE
+echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/mariadb" >> /etc/sudoers.d/USERNAME_HERE
+```
+  - Check monitor possibilities (you can find it out by calling `python linux_monitor/linux_monitor.py --help` from the root of this repository)
   - Load your shell or python script
 
 ## How to use in shell
