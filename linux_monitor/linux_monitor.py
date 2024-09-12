@@ -17,6 +17,9 @@ Non exhaustive list of features (available by using it in shell or in python scr
     - Get hostname, OS details, kernel version, server datetime
     - Get connected users
 
+    - Get processes list (PID and name)
+    - Kill a process by PID
+
     - Reboot server
 """
 
