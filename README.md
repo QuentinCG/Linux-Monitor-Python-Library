@@ -49,14 +49,14 @@ echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/systemctl" >> /etc/sudoers.d/USERNA
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/apache2" >> /etc/sudoers.d/USERNAME_HERE
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/mariadb" >> /etc/sudoers.d/USERNAME_HERE
 ```
-  - Check monitor possibilities (you can find it out by calling `python linux_monitor/linux_monitor.py --help` from the root of this repository)
+  - Check monitor possibilities (you can find it out by calling `python linuxmonitor/linuxmonitor.py --help` from the root of this repository)
   - Load your shell or python script
 
 ## How to use in shell
 
 ```shell
 # Get help
-python3 linux_monitor/linux_monitor.py --help
+python3 linuxmonitor/linuxmonitor.py --help
 # Use "--debug" to show more information during command
 # Use "--nodebug" to not show any warning information during command
 
@@ -64,55 +64,55 @@ python3 linux_monitor/linux_monitor.py --help
 
 # Start periodic task to show potential issues periodically (will run indefinitely)
 # Best is to call this as a service and put the result in a log file or do something of the stdout
-python3 linux_monitor/linux_monitor.py --start_scheduled_task_check_for_issues --config_file config-example.json --nodebug
+python3 linuxmonitor/linuxmonitor.py --start_scheduled_task_check_for_issues --config_file config-example.json --nodebug
 
 # Start periodic task to show system information periodically (will run indefinitely)
 # Best is to call this as a service and put the result in a log file or do something of the stdout
-python3 linux_monitor/linux_monitor.py --start_scheduled_task_show_info --config_file config-example.json --nodebug
+python3 linuxmonitor/linuxmonitor.py --start_scheduled_task_show_info --config_file config-example.json --nodebug
 
 
 
 # View disk space, CPU, RAM, ...
-python3 linux_monitor/linux_monitor.py --usage --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --usage --config_file config-example.json
 
 # View basic system information
-python3 linux_monitor/linux_monitor.py --os_infos --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --os_infos --config_file config-example.json
 
 # View connected users
-python3 linux_monitor/linux_monitor.py --users --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --users --config_file config-example.json
 
 # View last user connections
-python3 linux_monitor/linux_monitor.py --user_logins --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --user_logins --config_file config-example.json
 
 # Check websites (ping)
-python3 linux_monitor/linux_monitor.py --ping --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --ping --config_file config-example.json
 
 # Check SSL certificates
-python3 linux_monitor/linux_monitor.py --certificates --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --certificates --config_file config-example.json
 
 # Check if services are running and restart if down
-python3 linux_monitor/linux_monitor.py --services_status --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --services_status --config_file config-example.json
 
 # List all available services
-python3 linux_monitor/linux_monitor.py --list_services --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --list_services --config_file config-example.json
 
 # Restart all services
-python3 linux_monitor/linux_monitor.py --restart_all --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --restart_all --config_file config-example.json
 
 # Restart a service
-python3 linux_monitor/linux_monitor.py --restart_service SERVICE_NAME_HERE --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --restart_service SERVICE_NAME_HERE --config_file config-example.json
 
 # Check ports
-python3 linux_monitor/linux_monitor.py --ports --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --ports --config_file config-example.json
 
 # List active processes
-python3 linux_monitor/linux_monitor.py --list_processes --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --list_processes --config_file config-example.json
 
 # Stop a process by PID
-python3 linux_monitor/linux_monitor.py --kill_process PID_HERE --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --kill_process PID_HERE --config_file config-example.json
 
 # Restart the entire server
-python3 linux_monitor/linux_monitor.py --reboot_server --config_file config-example.json
+python3 linuxmonitor/linuxmonitor.py --reboot_server --config_file config-example.json
 ```
 
 ## How to use in python script
