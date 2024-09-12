@@ -6,7 +6,7 @@
 This python library is designed to be integrated in python or shell projects to monitor Linux servers.
 It is compatible with python 3+ and usable only on Linux.
 
-It is also designed to be easily integrated as discussion channel bots ([Discord Linux Monitor Bot](https://github.com/QuentinCG/Discord-Linux-Monitor-Bot-Python-Library))
+It is also designed to be easily integrated in discussion channel bots python scripts (example: [Discord Linux Monitor Bot](https://github.com/QuentinCG/Discord-Linux-Monitor-Bot-Python-Library))
 
 <img src="https://github.com/QuentinCG/Linux-Monitor-Python-Library/raw/master/welcome.png" width="300">
 
