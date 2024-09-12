@@ -67,11 +67,6 @@
             "restart_command": ["sudo", "/etc/init.d/apache2", "restart"],
             "status_command": ["sudo", "/etc/init.d/apache2", "status"]
         },
-        "ssh": {
-            "display_name": "SSH & SFTP",
-            "restart_command": ["sudo", "/etc/init.d/ssh", "restart"],
-            "status_command": ["sudo", "/etc/init.d/ssh", "status"]
-        },
         "sql": {
             "display_name": "SQL server (MariaDB)",
             "restart_command": ["sudo", "/etc/init.d/mariadb", "restart"],
@@ -86,13 +81,25 @@
     "certificates": [
         {
             "website": "amazon.com",
-            "display_name": "Amazon",
+            "display_name": "Example of valid certificate",
             "warning_remaining_days": 15,
             "critical_remaining_days": 5
         },
         {
             "website": "www.amazon.com",
-            "display_name": "Amazon (www)",
+            "display_name": "Example of requested 4000 days certificate (for error catching example only)",
+            "warning_remaining_days": 8000,
+            "critical_remaining_days": 4000
+        },
+        {
+            "website": "expired.badssl.com",
+            "display_name": "Example of expired certificate (considered invalid)",
+            "warning_remaining_days": 15,
+            "critical_remaining_days": 5
+        },
+        {
+            "website": "self-signed.badssl.com",
+            "display_name": "Example of self-signed certificate (considered invalid)",
             "warning_remaining_days": 15,
             "critical_remaining_days": 5
         }
@@ -126,13 +133,6 @@
             "display_name": "SQL Server (internal)",
             "want_port_to_be_open": true,
             "service_name_to_restart": "sql"
-        },
-        {
-            "port": 22,
-            "host": "localhost",
-            "display_name": "SSH & SFTP",
-            "want_port_to_be_open": true,
-            "service_name_to_restart": "ssh"
         },
         {
             "port": 3389,

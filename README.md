@@ -33,7 +33,6 @@ echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/kill" >> /etc/sudoers.d/USERNAME_HE
 # Example for the existing config-example.json file:
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/systemctl" >> /etc/sudoers.d/USERNAME_HERE
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/apache2" >> /etc/sudoers.d/USERNAME_HERE
-echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/ssh" >> /etc/sudoers.d/USERNAME_HERE
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/mariadb" >> /etc/sudoers.d/USERNAME_HERE
 ```
   - Check monitor possibilities (you can find it out by calling `python linux_monitor/linux_monitor.py --help` from the root of this repository)
