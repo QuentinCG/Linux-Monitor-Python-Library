@@ -17,7 +17,7 @@ Most important functionalities:
   - Do all checks bellow in a scheduled tasks and display the results every time (only in console if using only the library)
 
 List of 'check' functionalities:
-  - Check CPU, RAM, SWAP, Temperature, Uptime
+  - Check CPU, RAM, SWAP, Temperature
   - Check disk usage
   - Check folder usage
   - Check websites basic availability (ping)
@@ -26,7 +26,7 @@ List of 'check' functionalities:
   - Check last user connections IPs
 
 Additionnal functionalities:
-  - Get hostname, OS details, kernel version, server datetime
+  - Get hostname, OS details, kernel version, server datetime, uptime
   - Get connected users
   - Get processes list (PID and name)
   - Kill a process by PID

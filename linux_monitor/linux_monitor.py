@@ -6,7 +6,7 @@ Non exhaustive list of features (available by using it in shell or in python scr
     - Do all checks bellow in a scheduled tasks and display the results only if there is an issue (only in console if using only the library)
     - Do all checks bellow in a scheduled tasks and display the results every time (only in console if using only the library)
 
-    - Check CPU, RAM, SWAP, Temperature, Uptime
+    - Check CPU, RAM, SWAP, Temperature
     - Check disk usage
     - Check folder usage
     - Check websites basic availability (ping)
@@ -14,7 +14,7 @@ Non exhaustive list of features (available by using it in shell or in python scr
     - Check certificates expiration and validity
     - Check last user connections IPs
 
-    - Get hostname, OS details, kernel version, server datetime
+    - Get hostname, OS details, kernel version, server datetime, uptime
     - Get connected users
 
     - Get processes list (PID and name)
