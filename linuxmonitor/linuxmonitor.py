@@ -839,33 +839,33 @@ class LinuxMonitor:
 
         return out_msg
 
-    def get_service_status(self, is_private: bool, service_name: str) -> Union[None,bool]:
+    def _get_service_status(self, is_private: bool, service_name: str) -> Tuple[Union[None,bool], str]:
         """
         Get the status of a specific service.
 
         :param is_private: User permission to check private or public services (True for private, False for public).
         :param service_name: The name of the service name to check (as configured in the JSON configuration file).
 
-        :return: A boolean indicating the status of the service (True for active, False for inactive, None if an error occurred).
+        :return: A tuple containing the status of the service (True for active, False for inactive, None for error) and a string containing the result message.
         """
         if service_name not in self.config["services"].keys():
             logging.error(msg=f"Service {service_name} not found")
-            return None
+            return None, ""
 
         service = self.config["services"][service_name]
         display_name = service.get('display_name', service_name)
 
         if 'status_command' not in service:
             logging.error(msg=f"Status command (status_command) not found for service {service_name}")
-            return None
+            return None, ""
 
         status_command = service['status_command']
         check_also_stdout_not_containing = service.get('check_also_stdout_not_containing', None)
 
-        res, _ = self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout=5, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
-        return res
+        res, out_msg = self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout=5, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
+        return res, out_msg
 
-    def check_services_status(self, is_private: bool) -> str:
+    def check_all_services_status(self, is_private: bool) -> str:
         """
         Check the status of all services configured in the JSON configuration file.
 
@@ -894,12 +894,14 @@ class LinuxMonitor:
 
             for service_name in self.config["services"].keys():
                 if is_private or self.config["services"][service_name]['is_private'] == is_private:
-                    status: Union[None,bool] = self.get_service_status(is_private=is_private, service_name=service_name)
+                    status, status_msg = self._get_service_status(is_private=is_private, service_name=service_name)
                     service_status: str = status_to_string(res=status)
                     service_icon: str = status_to_icon(res=status)
                     if out_msg != "":
                         out_msg += "\n"
                     out_msg += f"- {service_icon} {self.config['services'][service_name]['display_name']}: **{service_status}**"
+                    if status == False and status_msg != "":
+                        out_msg += f"\n{status_msg}"
         except Exception as e:
             out_msg = f"**Internal error checking services status**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
@@ -918,10 +920,12 @@ class LinuxMonitor:
         try:
             for service_name in self.config["services"].keys():
                 if is_private or self.config["services"][service_name]['is_private'] == is_private:
-                    status: Union[None,bool] = self.get_service_status(is_private=is_private, service_name=service_name)
+                    status, status_msg = self._get_service_status(is_private=is_private, service_name=service_name)
                     if status is False:
                         out_msg: str = f"❌ **{self.config['services'][service_name]['display_name']} inactive**. Restarting the service is necessary."
                         logging.warning(msg=out_msg)
+                        if status_msg != "":
+                            out_msg += f"\n{status_msg}"
 
                         out_msg_full += out_msg + "\n"
                         out_msg_full += self.restart_service(is_private=is_private, service_name=service_name) + "\n"
