@@ -6,17 +6,31 @@
 This python library is designed to be integrated in python or shell projects to monitor Linux servers.
 It is compatible with python 3+ and usable only on Linux.
 
-It is also designed to be easily integrated as discussion channel bots (TODO: Link to discord bot project here)
+It is also designed to be easily integrated as discussion channel bots ([Discord Linux Monitor Bot](https://github.com/QuentinCG/Discord-Linux-Monitor-Bot-Python-Library))
 
 <img src="https://github.com/QuentinCG/Linux-Monitor-Python-Library/raw/master/welcome.png" width="300">
 
 ## Functionalities
 
-Non-exhaustive list of class functionalities:
-  - TODO
+Most important functionalities:
+  - Do all checks bellow in a scheduled tasks and display the results only if there is an issue (only in console if using only the library)
+  - Do all checks bellow in a scheduled tasks and display the results every time (only in console if using only the library)
 
-Non-exhaustive list of shell commands:
-  - TODO
+List of 'check' functionalities:
+  - Check CPU, RAM, SWAP, Temperature, Uptime
+  - Check disk usage
+  - Check folder usage
+  - Check websites basic availability (ping)
+  - Check services status and restart them if needed
+  - Check certificates expiration and validity
+  - Check last user connections IPs
+
+Additionnal functionalities:
+  - Get hostname, OS details, kernel version, server datetime
+  - Get connected users
+  - Get processes list (PID and name)
+  - Kill a process by PID
+  - Reboot server
 
 ## How to install (python script and shell)
 
@@ -42,23 +56,69 @@ echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/mariadb" >> /etc/sudoers.d/U
 
 ```shell
 # Get help
-python linux_monitor.py --help
-
-# TODO
-
+python3 linux_monitor/linux_monitor.py --help
 # Use "--debug" to show more information during command
 # Use "--nodebug" to not show any warning information during command
+
+
+
+# Start periodic task to show potential issues periodically (will run indefinitely)
+# Best is to call this as a service and put the result in a log file or do something of the stdout
+python3 linux_monitor/linux_monitor.py --start_scheduled_task_check_for_issues --config_file config-example.json --nodebug
+
+# Start periodic task to show system information periodically (will run indefinitely)
+# Best is to call this as a service and put the result in a log file or do something of the stdout
+python3 linux_monitor/linux_monitor.py --start_scheduled_task_show_info --config_file config-example.json --nodebug
+
+
+
+# View disk space, CPU, RAM, ...
+python3 linux_monitor/linux_monitor.py --usage --config_file config-example.json
+
+# View basic system information
+python3 linux_monitor/linux_monitor.py --os_infos --config_file config-example.json
+
+# View connected users
+python3 linux_monitor/linux_monitor.py --users --config_file config-example.json
+
+# View last user connections
+python3 linux_monitor/linux_monitor.py --user_logins --config_file config-example.json
+
+# Check websites (ping)
+python3 linux_monitor/linux_monitor.py --ping --config_file config-example.json
+
+# Check SSL certificates
+python3 linux_monitor/linux_monitor.py --certificates --config_file config-example.json
+
+# Check if services are running and restart if down
+python3 linux_monitor/linux_monitor.py --services_status --config_file config-example.json
+
+# List all available services
+python3 linux_monitor/linux_monitor.py --list_services --config_file config-example.json
+
+# Restart all services
+python3 linux_monitor/linux_monitor.py --restart_all --config_file config-example.json
+
+# Restart a service
+python3 linux_monitor/linux_monitor.py --restart_service SERVICE_NAME_HERE --config_file config-example.json
+
+# Check ports
+python3 linux_monitor/linux_monitor.py --ports --config_file config-example.json
+
+# List active processes
+python3 linux_monitor/linux_monitor.py --list_processes --config_file config-example.json
+
+# Stop a process by PID
+python3 linux_monitor/linux_monitor.py --kill_process PID_HERE --config_file config-example.json
+
+# Restart the entire server
+python3 linux_monitor/linux_monitor.py --reboot_server --config_file config-example.json
 ```
 
 ## How to use in python script
 
 Example of python script using this library:
-
-```python
-from linux_monitor.linux_monitor import linux_monitor
-
-# TODO
-```
+ - [Discord Linux Monitor Bot](https://github.com/QuentinCG/Discord-Linux-Monitor-Bot-Python-Library)
 
 ## License
 
