@@ -26,6 +26,10 @@
         {
             "website": "www.google.com",
             "display_name": "Google (WWW)"
+        },
+        {
+            "website": "123.123.123.123",
+            "display_name": "A great dummy IP"
         }
     ],
     "disks": [
