@@ -701,7 +701,7 @@ class LinuxMonitor:
 
     #region Ping Websites
 
-    def _ping_website(self, website: str, display_name: str, display_only_if_critical: bool=False) -> str:
+    def _ping_website(self, website: str, display_name: str, timeout_in_sec: int, display_only_if_critical: bool=False) -> str:
         """
         Ping a website.
 
@@ -715,7 +715,7 @@ class LinuxMonitor:
         display_name = f"[{display_name}](https://{website})"
 
         start_time: float = time.time()
-        res, out_msg = self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout_in_sec=5, display_only_if_critical=display_only_if_critical)
+        res, out_msg = self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
         end_time: float = time.time()
 
         if res == True and not display_only_if_critical:
@@ -737,7 +737,8 @@ class LinuxMonitor:
         out_msg: str = ""
         for ping_config in self.config['pings']:
             if is_private or is_private == ping_config['is_private']:
-                result: str = self._ping_website(website=ping_config['website'], display_name=ping_config['display_name'], display_only_if_critical=display_only_if_critical)
+                timeout_in_sec: int = ping_config.get('timeout_in_sec', 5)
+                result: str = self._ping_website(website=ping_config['website'], display_name=ping_config['display_name'], timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
                 if result:
                     if out_msg:
                         out_msg += "\n"

@@ -124,28 +124,32 @@
             "host": "localhost",
             "display_name": "Web server (unsecured)",
             "want_port_to_be_open": true,
-            "service_name_to_restart": "web"
+            "service_name_to_restart": "web",
+            "timeout_in_sec": 5
         },
         {
             "port": 443,
             "host": "localhost",
             "display_name": "Web server (ecured)",
             "want_port_to_be_open": true,
-            "service_name_to_restart": "web"
+            "service_name_to_restart": "web",
+            "timeout_in_sec": 5
         },
         {
             "port": 3306,
             "host": "localhost",
             "display_name": "SQL Server (internal)",
             "want_port_to_be_open": true,
-            "service_name_to_restart": "sql"
+            "service_name_to_restart": "sql",
+            "timeout_in_sec": 10
         },
         {
             "port": 3389,
             "host": "localhost",
             "display_name": "RDP",
             "want_port_to_be_open": true,
-            "service_name_to_restart": "rdp"
+            "service_name_to_restart": "rdp",
+            "timeout_in_sec": 10
         }
     ]
 }
