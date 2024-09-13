@@ -28,7 +28,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.0.1 (2024/09/13)"
+__version__ = "1.0.2 (2024/09/13)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -937,6 +937,10 @@ class LinuxMonitor:
 
                         out_msg_full += out_msg + "\n"
                         out_msg_full += self.restart_service(is_private=is_private, service_name=service_name) + "\n"
+                    elif status is None:
+                        out_msg: str = f"⚠️ **Error checking status of {self.config['services'][service_name]['display_name']}** (not restarting it)."
+                        logging.error(msg=out_msg)
+                        out_msg_full += out_msg + "\n"
         except Exception as e:
             out_msg_full = f"**Internal error during service status check.**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg_full)
