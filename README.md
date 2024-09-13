@@ -1,5 +1,5 @@
 # Linux Monitor (Python library)
-[![PyPI version](https://badge.fury.io/py/Linux-Monitor.svg)](https://badge.fury.io/py/Linux-Monitor) [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://github.com/QuentinCG/Linux-Monitor-Python-Library/blob/master/LICENSE.md) [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/QuentinCG)
+[![PyPI version](https://badge.fury.io/py/Linux-Monitor.svg)](https://pypi.org/project/LinuxMonitor/) [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://github.com/QuentinCG/Linux-Monitor-Python-Library/blob/master/LICENSE.md) [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/QuentinCG)
 
 ## What is it
 
