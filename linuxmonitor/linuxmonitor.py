@@ -35,7 +35,7 @@ import json
 import subprocess
 import time
 import shutil
-from typing import Callable, Optional, Union, Dict, Set, List, Tuple, Awaitable, Any
+from typing import Callable, Optional, Dict, Set, List, Tuple, Awaitable, Any
 import psutil
 import os
 import ssl
@@ -167,13 +167,13 @@ class LinuxMonitor:
 
     #region Execute Command
 
-    def execute_and_verify(self, command: List[str], display_name: str, timeout: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[bool, str]:
+    def execute_and_verify(self, command: List[str], display_name: str, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[Optional[bool], str]:
         """
         Execute a shell command and verify its correct execution.
 
         :param command: A list of strings representing the command and its arguments.
         :param display_name: The name of the command to display in the output message.
-        :param timeout: Timeout in seconds for the command execution. None means no timeout.
+        :param timeout_in_sec: Timeout in seconds for the command execution. None means no timeout.
         :param display_only_if_critical: If True, the string result will only be returned if there is an error during execution.
         :param check_also_stdout_not_containing: If not None, we check that the stdout does not contain this string, if found, we consider it as an execution error.
 
@@ -185,41 +185,48 @@ class LinuxMonitor:
             logging.debug(msg=f"Executing command {display_name} (command: {command})...")
             pipe = subprocess.Popen(args=command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
             try:
-                stdout, stderr = pipe.communicate(timeout=timeout)
+                stdout, stderr = pipe.communicate(timeout=timeout_in_sec)
                 returncode = pipe.returncode
             except subprocess.TimeoutExpired:
                 logging.warning(msg=f"Timeout expired for {display_name} (command: {command})")
                 pipe.kill()
                 stdout, stderr = pipe.communicate()
         except Exception as e:
+            # Failed to execute the command
             out_msg = f"⚠️ **Error {display_name}**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
-            return False, out_msg
+            return None, out_msg
 
         # Decode and replace backticks with double quotes
         stdout_str: str = stdout.decode(encoding='utf-8').replace('`', '"').strip()
         stderr_str: str = stderr.decode(encoding='utf-8').replace('`', '"').strip()
 
         # Check if the command executed successfully
-        res: bool = (returncode == 0)
+        res: Optional[bool] = (returncode == 0) if (returncode != -1) else None
         if res and check_also_stdout_not_containing:
             res = check_also_stdout_not_containing not in stdout_str
 
         out_msg: str = ""
-        if not res:
+        if res == False:
+            # Command returned an error code
             out_msg = f"❌ **Error {display_name}**\n"
+            out_msg += f"- Error code: {returncode}"
+
             if stderr_str != "":
                 out_msg += f"- Error log:\n```sh\n{stderr_str}\n```"
 
             if stdout_str != "":
                 out_msg += f"- Info:\n```sh\n{stdout_str}\n```"
-
-            out_msg += f"- Error code: {returncode}"
+        elif res == None:
+            # Command timed out
+            out_msg = f"⚠️ **Error {display_name}**\n"
+            out_msg += f"- Failed to wait for the command to finish (due to timeout of {timeout_in_sec} seconds)"
         else:
+            # Command executed successfully
             if not display_only_if_critical:
                 out_msg = f"✅ **{display_name} executed successfully**"
 
-        if res:
+        if res == True:
             logging.info(msg=f"Command {display_name} (command {command}) executed successfully")
         else:
             logging.error(msg=f"Error executing command {display_name} (command {command}):\n{out_msg}")
@@ -239,7 +246,7 @@ class LinuxMonitor:
         IMPORTANT: To be usable, the user must have the right to execute `sudo /sbin/reboot` command without password.
         """
         logging.info(msg="Rebooting the server...")
-        _, out_msg = self.execute_and_verify(command=["sudo", "/sbin/reboot"], display_name="Server reboot", timeout=None, display_only_if_critical=False)
+        _, out_msg = self.execute_and_verify(command=["sudo", "/sbin/reboot"], display_name="Server reboot", timeout_in_sec=None, display_only_if_critical=False)
         return out_msg
 
     #endregion
@@ -708,10 +715,10 @@ class LinuxMonitor:
         display_name = f"[{display_name}](https://{website})"
 
         start_time: float = time.time()
-        res, out_msg = self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout=5, display_only_if_critical=display_only_if_critical)
+        res, out_msg = self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout_in_sec=5, display_only_if_critical=display_only_if_critical)
         end_time: float = time.time()
 
-        if res and not display_only_if_critical:
+        if res == True and not display_only_if_critical:
             res_ping_sec: str = "{:.2f}sec".format(end_time - start_time)
             out_msg: str = f"✅ **{display_name} answered in {res_ping_sec}**."
             logging.info(msg=out_msg)
@@ -807,10 +814,10 @@ class LinuxMonitor:
         logging.info(f"Trying to restart {display_name} (command: {service_call}) in less than {timeout_in_sec}sec...")
 
         start_time: float = time.time()
-        res, out_msg = self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", timeout=timeout_in_sec, display_only_if_critical=False)
+        res, out_msg = self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
         end_time: float = time.time()
 
-        if res:
+        if res == True:
             readable_duration: str = "{:.2f}".format(end_time - start_time)
             out_msg = f"✅ **{display_name} restarted with success** in {readable_duration}sec."
             logging.info(msg=out_msg)
@@ -839,7 +846,7 @@ class LinuxMonitor:
 
         return out_msg
 
-    def _get_service_status(self, is_private: bool, service_name: str) -> Tuple[Union[None,bool], str]:
+    def _get_service_status(self, is_private: bool, service_name: str) -> Tuple[Optional[bool], str]:
         """
         Get the status of a specific service.
 
@@ -854,6 +861,7 @@ class LinuxMonitor:
 
         service = self.config["services"][service_name]
         display_name = service.get('display_name', service_name)
+        timeout_in_sec = service.get('timeout_in_sec', 30)
 
         if 'status_command' not in service:
             logging.error(msg=f"Status command (status_command) not found for service {service_name}")
@@ -862,7 +870,7 @@ class LinuxMonitor:
         status_command = service['status_command']
         check_also_stdout_not_containing = service.get('check_also_stdout_not_containing', None)
 
-        res, out_msg = self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout=5, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
+        res, out_msg = self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
         return res, out_msg
 
     def check_all_services_status(self, is_private: bool) -> str:
@@ -900,7 +908,7 @@ class LinuxMonitor:
                     if out_msg != "":
                         out_msg += "\n"
                     out_msg += f"- {service_icon} {self.config['services'][service_name]['display_name']}: **{service_status}**"
-                    if status == False and status_msg != "":
+                    if status != True and status_msg != "":
                         out_msg += f"\n{status_msg}"
         except Exception as e:
             out_msg = f"**Internal error checking services status**:\n```sh\n{e}\n```"
@@ -1295,7 +1303,7 @@ class LinuxMonitor:
 
     #region Ports
 
-    def _is_port_is_required_state(self, display_name: str, port: int, host: str = "localhost", timeout_in_sec: float = 2, want_port_to_be_open: bool = True) -> Tuple[bool, str]:
+    def _is_port_in_required_state(self, display_name: str, port: int, host: str = "localhost", timeout_in_sec: float = 2, want_port_to_be_open: bool = True) -> Tuple[bool, str]:
         """
         Check if a specific port is in the required state (open or closed).
 
@@ -1355,14 +1363,14 @@ class LinuxMonitor:
                     port: int = port_config['port']
                     display_name: str = port_config.get('display_name', f"Port {port}")
                     host: str = port_config.get('host', 'localhost')
-                    timeout_in_sec: float = port_config.get('timeout_in_sec', 2)
+                    timeout_in_sec: float = port_config.get('timeout_in_sec', 10)
                     want_port_to_be_open: bool = port_config.get('want_port_to_be_open', True)
 
                     service_name_to_restart: str = ""
                     if want_port_to_be_open and restart_if_down:
                         service_name_to_restart = port_config.get('service_name_to_restart', "")
 
-                    result, result_msg = self._is_port_is_required_state(port=port, host=host, timeout_in_sec=timeout_in_sec, want_port_to_be_open=want_port_to_be_open, display_name=display_name)
+                    result, result_msg = self._is_port_in_required_state(port=port, host=host, timeout_in_sec=timeout_in_sec, want_port_to_be_open=want_port_to_be_open, display_name=display_name)
                     if result_msg != "" and (not display_only_if_critical or not result):
                         if out_msg != "":
                             out_msg += "\n"
@@ -1489,17 +1497,19 @@ class LinuxMonitor:
 
             # Attempt to terminate the process
             terminate_command: List[str] = ['sudo', '/bin/kill', '-TERM', str(pid)]
-            result_terminate, _ = self.execute_and_verify(command=terminate_command, display_name=f"stop process {pid} ({process_name})", timeout=timeout_in_sec, display_only_if_critical=False)
+            result_terminate, _ = self.execute_and_verify(command=terminate_command, display_name=f"stop process {pid} ({process_name})", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
 
-            if result_terminate:
+            if result_terminate == True:
                 out_msg = f"✅ **Process {pid} ({process_name}) stopped with success** (nicely)).\n"
-            else:
+            elif result_terminate == False:
                 # Termination did not complete in time or failed
-                out_msg = f"⚠️ **Stopping nicely {pid} ({process_name}) expired of failed**.\n"
+                out_msg = f"⚠️ **Stopping nicely {pid} ({process_name}) failed**.\n"
+            else:
+                out_msg = f"⚠️ **Stopping nicely {pid} ({process_name}) expired**.\n"
 
                 # Attempt to kill the process
                 kill_command = ['sudo', '/bin/kill', '-KILL', str(pid)]
-                _, strerror_kill = self.execute_and_verify(command=kill_command, display_name=f"kill process {pid} ({process_name})", timeout=timeout_in_sec, display_only_if_critical=False)
+                _, strerror_kill = self.execute_and_verify(command=kill_command, display_name=f"kill process {pid} ({process_name})", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
                 out_msg += strerror_kill
 
             if process_cpu_percent > 0:
@@ -1591,17 +1601,17 @@ class LinuxMonitor:
 
         await asyncio.sleep(delay=10)  # Sleep for 10 sec before lauching the scheduled tasks (to allow the lib to be ready)
 
-        datetime_last_disk_usage_error_displayed: Union[datetime,None] = None
-        datetime_last_folder_usage_error_displayed: Union[datetime,None] = None
-        datetime_last_cpu_usage_error_displayed: Union[datetime,None] = None
-        datetime_last_ram_usage_error_displayed: Union[datetime,None] = None
-        datetime_last_swap_usage_error_displayed: Union[datetime,None] = None
-        datetime_last_cpu_temperature_error_displayed: Union[datetime,None] = None
-        datetime_last_ping_error_displayed: Union[datetime,None] = None
-        datetime_last_certificates_error_displayed: Union[datetime,None] = None
-        datetime_last_user_logins_error_displayed: Union[datetime,None] = None
-        datetime_last_port_error_displayed: Union[datetime,None] = None
-        datetime_last_services_error_displayed: Union[datetime,None] = None
+        datetime_last_disk_usage_error_displayed: Optional[datetime] = None
+        datetime_last_folder_usage_error_displayed: Optional[datetime] = None
+        datetime_last_cpu_usage_error_displayed: Optional[datetime] = None
+        datetime_last_ram_usage_error_displayed: Optional[datetime] = None
+        datetime_last_swap_usage_error_displayed: Optional[datetime] = None
+        datetime_last_cpu_temperature_error_displayed: Optional[datetime] = None
+        datetime_last_ping_error_displayed: Optional[datetime] = None
+        datetime_last_certificates_error_displayed: Optional[datetime] = None
+        datetime_last_user_logins_error_displayed: Optional[datetime] = None
+        datetime_last_port_error_displayed: Optional[datetime] = None
+        datetime_last_services_error_displayed: Optional[datetime] = None
 
         if not self.start_scheduled_task_show_info_immediately:
             logging.info(msg=f"Waiting for {self.duration_in_sec_wait_between_each_schedule_task_execution} seconds before starting the execution of {'private' if is_private else 'public'} scheduled tasks...")
