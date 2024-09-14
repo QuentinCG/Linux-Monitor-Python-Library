@@ -24,6 +24,7 @@ List of 'check' functionalities:
   - Check services status and restart them if needed
   - Check certificates expiration and validity
   - Check last user connections IPs
+  - Check uptime (to inform if the server has been rebooted)
 
 Additionnal functionalities:
   - Get hostname, OS details, kernel version, server datetime, uptime

@@ -13,6 +13,7 @@ Non exhaustive list of features (available by using it in shell or in python scr
     - Check services status and restart them if needed
     - Check certificates expiration and validity
     - Check last user connections IPs
+    - Check uptime (to inform if the server has been rebooted)
 
     - Get hostname, OS details, kernel version, server datetime, uptime
     - Get connected users
