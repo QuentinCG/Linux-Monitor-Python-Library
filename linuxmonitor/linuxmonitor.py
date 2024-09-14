@@ -129,6 +129,14 @@ class LinuxMonitor:
             raise ValueError("The basic configuration must contain the 'critical_temperature_celsius' key")
         self.critical_temperature_celsius: float = basic_config.get('critical_temperature_celsius') # type: ignore
 
+        if 'critical_uptime_seconds' not in basic_config:
+            raise ValueError("The basic configuration must contain the 'critical_uptime_seconds' key")
+        self.critical_uptime_seconds: int = basic_config.get('critical_uptime_seconds') # type: ignore
+
+        if 'warning_uptime_seconds' not in basic_config:
+            raise ValueError("The basic configuration must contain the 'warning_uptime_seconds' key")
+        self.warning_uptime_seconds: int = basic_config.get('warning_uptime_seconds') # type: ignore
+
         # Get the scheduled tasks for issues configuration
         if self.allow_scheduled_tasks_check_for_issues:
             schedule_check_for_issues_config: Dict[str, Any] = self.config.get('scheduled_tasks_check_for_issues', {}) # type: ignore
@@ -634,9 +642,11 @@ class LinuxMonitor:
 
         return out_msg
 
-    def get_uptime(self) -> str:
+    def check_uptime(self, display_only_if_critical: bool=False) -> str:
         """
-        Get the system uptime.
+        Check the system uptime.
+
+        :param display_only_if_critical: If True, the string result will only be returned if uptime is less than the critical uptime defined in the configuration.
 
         :return: A string containing the result message.
         """
@@ -652,25 +662,6 @@ class LinuxMonitor:
             # Date de démarrage du système
             boot_time: str = time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(psutil.boot_time()))
 
-            # Funny emoji depending on uptime
-            emoji: str = ""
-            if years >= 2:
-                emoji = "🎂"
-            if years >= 1:
-                emoji = "🎉"
-            elif months >= 6:
-                emoji = "🥳"
-            elif months >= 1:
-                emoji = "😀"
-            elif days >= 1:
-                emoji = "🎊"
-            elif hours >= 1:
-                emoji = "👶"
-            elif minutes >= 20:
-                emoji = "🤔"
-            else:
-                emoji = "☢️"
-
             dispo: str = ""
             if years >= 1:
                 dispo += f"{int(years)} year(s) "
@@ -685,10 +676,37 @@ class LinuxMonitor:
             if seconds >= 1:
                 dispo += f"{int(seconds)}sec "
 
-            out_msg: str = (f"# 🕒 System availability 🕒\n"
-                          f"- {emoji} **{dispo}**(started on {boot_time})")
-            logging.info(msg=out_msg)
+            out_msg: str = ""
+            if uptime_seconds < self.critical_uptime_seconds:
+                out_msg = f"- 🚨 **Server restarted recently**:\n- {dispo}(started on {boot_time})"
+            elif not display_only_if_critical:
+                if uptime_seconds < self.warning_uptime_seconds:
+                    out_msg = f"- ⚠️ **Server restarted recently**: {dispo}(started on {boot_time})"
+                else:
+                    # Funny emoji depending on uptime if everything is fine
+                    emoji: str = ""
+                    if years >= 2:
+                        emoji = "🎂"
+                    if years >= 1:
+                        emoji = "🎉"
+                    elif months >= 6:
+                        emoji = "🥳"
+                    elif months >= 1:
+                        emoji = "😀"
+                    elif days >= 1:
+                        emoji = "🎊"
+                    elif hours >= 1:
+                        emoji = "👶"
+                    elif minutes >= 20:
+                        emoji = "🤔"
+                    else:
+                        emoji = "☢️"
 
+                    out_msg = f"- {emoji} **{dispo}**(started on {boot_time})"
+
+            if out_msg != "":
+                out_msg = f"# 🕒 System availability 🕒\n{out_msg}"
+                logging.info(msg=out_msg)
         except Exception as e:
             out_msg = f"- ⚠️ **Error getting system uptime**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
@@ -1615,6 +1633,7 @@ class LinuxMonitor:
         datetime_last_user_logins_error_displayed: Optional[datetime] = None
         datetime_last_port_error_displayed: Optional[datetime] = None
         datetime_last_services_error_displayed: Optional[datetime] = None
+        need_to_check_uptime: bool = True # No need to check uptime every time (since once ok, it can't be wrong)
 
         if not self.start_scheduled_task_show_info_immediately:
             logging.info(msg=f"Waiting for {self.duration_in_sec_wait_between_each_schedule_task_execution} seconds before starting the execution of {'private' if is_private else 'public'} scheduled tasks...")
@@ -1860,6 +1879,19 @@ class LinuxMonitor:
                         datetime_last_cpu_temperature_error_displayed = None
                     else:
                         logging.info(msg="- ✅ CPU temperature is OK.")
+
+                # Uptime
+                if is_private:
+                    if need_to_check_uptime:
+                        msg = self.check_uptime(display_only_if_critical=True)
+                        need_to_check_uptime = False
+                        if msg != "":
+                            logging.warning(msg=msg)
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += msg
+                        else:
+                            logging.info(msg="- ✅ Uptime is OK.")
             except Exception as e:
                 out_msg = f"**Internal error during periodic server check task**:\n```sh\n{e}\n```"
                 logging.exception(msg=out_msg)

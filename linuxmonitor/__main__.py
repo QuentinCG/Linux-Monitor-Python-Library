@@ -79,7 +79,7 @@ def main() -> None:
         out_msg: str = monitoring.get_hostname() + "\n"
         out_msg += monitoring.get_os_details() + "\n"
         out_msg += monitoring.get_kernel_version() + "\n"
-        out_msg += monitoring.get_uptime() + "\n"
+        out_msg += monitoring.check_uptime(display_only_if_critical=False) + "\n"
         out_msg += monitoring.get_server_datetime()
         print(out_msg)
 
