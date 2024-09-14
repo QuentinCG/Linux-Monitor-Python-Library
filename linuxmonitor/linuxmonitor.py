@@ -1023,15 +1023,15 @@ class LinuxMonitor:
                 expiry_date = cert_infos["expiry_date"]
 
             if not cert_infos["is_valid"]:
-                out_msg = f"- 🚨 **Invalid SSL certificate [{display_name}](https://{hostname})**\n" \
+                out_msg = f"- ❌ **Invalid SSL certificate [{display_name}](https://{hostname})**\n" \
                         f" - **Certificate expired on {expiry_date.strftime('%d/%m/%Y')}**\n" \
-                        f"⚠️ **Renew the SSL certificate immediately** ⚠️"
+                        f" - **Renew the SSL certificate immediately**"
                 logging.warning(msg=out_msg)
             elif critical_remaining_days > 0 and remaining_days < critical_remaining_days:
-                out_msg = f"- 🚨 **Critical SSL certificate [{display_name}](https://{hostname})**:\n" \
+                out_msg = f"- ⚠️ **SSL certificate [{display_name}](https://{hostname}) will expire soon**:\n" \
                         f" - Certificate expires on {expiry_date.strftime('%d/%m/%Y')}\n" \
                         f" - **{remaining_days} remaining days**\n" \
-                        f"⚠️ **Renew the SSL certificate quickly** ⚠️"
+                        f" - **Renew the SSL certificate quickly**"
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if warning_remaining_days > 0 and remaining_days < warning_remaining_days:
@@ -1041,14 +1041,14 @@ class LinuxMonitor:
                 else:
                     icon = "✅ "
 
-                out_msg = f"{icon}[{display_name}](https://{hostname}): {remaining_days} remaining days (expires on {expiry_date.strftime('%d/%m/%Y')} which is in less than {critical_remaining_days} days)"
+                out_msg = f"- {icon}[{display_name}](https://{hostname}): {remaining_days} remaining days (expires on {expiry_date.strftime('%d/%m/%Y')} which is in less than {critical_remaining_days} days)"
                 logging.info(msg=out_msg)
 
             # Display the error of retrieving the certificate if there is one
             if cert_infos["error"]:
-                out_msg += f":\n- Error: `{cert_infos['error']}`"
+                out_msg += f":\n - Error: `{cert_infos['error']}`"
         except Exception as e:
-            out_msg = f"⚠️ **Error checking SSL certificate of [{display_name}](https://{hostname})**:\n```sh\n{e}\n```"
+            out_msg = f"- ⚠️ **Error checking SSL certificate of [{display_name}](https://{hostname})**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
 
         return out_msg
@@ -1078,7 +1078,7 @@ class LinuxMonitor:
                         if result and result != "":
                             if out_msg != "":
                                 out_msg += "\n"
-                            out_msg += f"- {result}"
+                            out_msg += f"{result}"
 
             if out_msg != "":
                 out_msg = f"# 🔐 Certificates 🔐\n{out_msg}"
