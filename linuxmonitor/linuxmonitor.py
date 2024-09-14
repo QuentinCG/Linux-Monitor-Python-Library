@@ -1639,7 +1639,7 @@ class LinuxMonitor:
         datetime_last_services_error_displayed: Optional[datetime] = None
         need_to_check_uptime: bool = True # No need to check uptime every time (since once ok, it can't be wrong)
 
-        if not self.start_scheduled_task_show_info_immediately:
+        if not self.start_scheduled_tasks_immediately:
             logging.info(msg=f"Waiting for {self.duration_in_sec_wait_between_each_schedule_task_execution} seconds before starting the execution of {'private' if is_private else 'public'} scheduled tasks...")
             await asyncio.sleep(delay=self.duration_in_sec_wait_between_each_schedule_task_execution)
 
