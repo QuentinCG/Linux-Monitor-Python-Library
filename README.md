@@ -6,7 +6,7 @@
 This python library is designed to be integrated in python or shell projects to monitor Linux servers.
 It is compatible with python 3+ and usable only on Linux.
 
-It is also designed to be easily integrated in discussion channel bots python scripts (example: [Discord Linux Monitor Bot](https://github.com/QuentinCG/Discord-Linux-Monitor-Bot-Python-Library))
+It is also designed to be easily integrated in discussion channel bots python scripts (example: [Discord Bot Linux Monitor](https://github.com/QuentinCG/Discord-Bot-Linux-Monitor-Python-Library))
 
 <img src="https://github.com/QuentinCG/Linux-Monitor-Python-Library/raw/master/welcome.png" width="300">
 
@@ -49,14 +49,14 @@ echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/systemctl" >> /etc/sudoers.d/USERNA
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/apache2" >> /etc/sudoers.d/USERNAME_HERE
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/mariadb" >> /etc/sudoers.d/USERNAME_HERE
 ```
-  - Check monitor possibilities (you can find it out by calling `python -m linuxmonitor.py --help` from the root of this repository)
+  - Check monitor possibilities (you can find it out by calling `python -m linuxmonitor --help` from the root of this repository)
   - Load your shell or python script
 
 ## How to use in shell
 
 ```shell
 # Get help
-python3 -m linuxmonitor.py --help
+python3 -m linuxmonitor --help
 # Use "--debug" to show more information during command
 # Use "--nodebug" to not show any warning information during command
 
@@ -64,61 +64,61 @@ python3 -m linuxmonitor.py --help
 
 # Start periodic task to show potential issues periodically (will run indefinitely)
 # Best is to call this as a service and put the result in a log file or do something of the stdout
-python3 -m linuxmonitor.py --start_scheduled_task_check_for_issues --config_file config-example.json --nodebug
+python3 -m linuxmonitor --start_scheduled_task_check_for_issues --config_file config-example.json --nodebug
 
 # Start periodic task to show system information periodically (will run indefinitely)
 # Best is to call this as a service and put the result in a log file or do something of the stdout
-python3 -m linuxmonitor.py --start_scheduled_task_show_info --config_file config-example.json --nodebug
+python3 -m linuxmonitor --start_scheduled_task_show_info --config_file config-example.json --nodebug
 
 
 
 # View disk space, CPU, RAM, ...
-python3 -m linuxmonitor.py --usage --config_file config-example.json
+python3 -m linuxmonitor --usage --config_file config-example.json
 
 # View basic system information
-python3 -m linuxmonitor.py --os_infos --config_file config-example.json
+python3 -m linuxmonitor --os_infos --config_file config-example.json
 
 # View connected users
-python3 -m linuxmonitor.py --users --config_file config-example.json
+python3 -m linuxmonitor --users --config_file config-example.json
 
 # View last user connections
-python3 -m linuxmonitor.py --user_logins --config_file config-example.json
+python3 -m linuxmonitor --user_logins --config_file config-example.json
 
 # Check websites (ping)
-python3 -m linuxmonitor.py --ping --config_file config-example.json
+python3 -m linuxmonitor --ping --config_file config-example.json
 
 # Check SSL certificates
-python3 -m linuxmonitor.py --certificates --config_file config-example.json
+python3 -m linuxmonitor --certificates --config_file config-example.json
 
 # Check if services are running and restart if down
-python3 -m linuxmonitor.py --services_status --config_file config-example.json
+python3 -m linuxmonitor --services_status --config_file config-example.json
 
 # List all available services
-python3 -m linuxmonitor.py --list_services --config_file config-example.json
+python3 -m linuxmonitor --list_services --config_file config-example.json
 
 # Restart all services
-python3 -m linuxmonitor.py --restart_all --config_file config-example.json
+python3 -m linuxmonitor --restart_all --config_file config-example.json
 
 # Restart a service
-python3 -m linuxmonitor.py --restart_service SERVICE_NAME_HERE --config_file config-example.json
+python3 -m linuxmonitor --restart_service SERVICE_NAME_HERE --config_file config-example.json
 
 # Check ports
-python3 -m linuxmonitor.py --ports --config_file config-example.json
+python3 -m linuxmonitor --ports --config_file config-example.json
 
 # List active processes
-python3 -m linuxmonitor.py --list_processes --config_file config-example.json
+python3 -m linuxmonitor --list_processes --config_file config-example.json
 
 # Stop a process by PID
-python3 -m linuxmonitor.py --kill_process PID_HERE --config_file config-example.json
+python3 -m linuxmonitor --kill_process PID_HERE --config_file config-example.json
 
 # Restart the entire server
-python3 -m linuxmonitor.py --reboot_server --config_file config-example.json
+python3 -m linuxmonitor --reboot_server --config_file config-example.json
 ```
 
 ## How to use in python script
 
 Example of python script using this library:
- - [Discord Linux Monitor Bot](https://github.com/QuentinCG/Discord-Linux-Monitor-Bot-Python-Library)
+ - [Discord Bot Linux Monitor](https://github.com/QuentinCG/Discord-Bot-Linux-Monitor-Python-Library)
 
 ## License
 
