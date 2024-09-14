@@ -1041,7 +1041,7 @@ class LinuxMonitor:
                 else:
                     icon = "✅ "
 
-                out_msg = f"{icon}[{display_name}](https://{hostname}): {remaining_days} remaining days (expires on {expiry_date.strftime('%d/%m/%Y')})"
+                out_msg = f"{icon}[{display_name}](https://{hostname}): {remaining_days} remaining days (expires on {expiry_date.strftime('%d/%m/%Y')} which is in less than {critical_remaining_days} days)"
                 logging.info(msg=out_msg)
 
             # Display the error of retrieving the certificate if there is one
