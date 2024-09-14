@@ -174,9 +174,9 @@ class LinuxMonitor:
 
     #region Execute Command
 
-    def execute_and_verify(self, command: List[str], display_name: str, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[Optional[bool], str]:
+    async def execute_and_verify(self, command: List[str], display_name: str, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[Optional[bool], str]:
         """
-        Execute a shell command and verify its correct execution.
+        Execute a shell command asynchronously and verify its correct execution.
 
         :param command: A list of strings representing the command and its arguments.
         :param display_name: The name of the command to display in the output message.
@@ -186,18 +186,24 @@ class LinuxMonitor:
 
         :return: A tuple containing a boolean indicating if the command was executed successfully and a string containing the result message.
         """
-        returncode: int = -1
+        returncode: Optional[int] = None
 
         try:
             logging.debug(msg=f"Executing command {display_name} (command: {command})...")
-            pipe = subprocess.Popen(args=command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                shell=False
+            )
+
             try:
-                stdout, stderr = pipe.communicate(timeout=timeout_in_sec)
-                returncode = pipe.returncode
-            except subprocess.TimeoutExpired:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_in_sec)
+                returncode = process.returncode
+            except asyncio.TimeoutError:
                 logging.warning(msg=f"Timeout expired for {display_name} (command: {command})")
-                pipe.kill()
-                stdout, stderr = pipe.communicate()
+                process.kill()
+                return None, f"⚠️ **Error {display_name}**:\n- Failed to execute the command in less than {timeout_in_sec} seconds)"
         except Exception as e:
             # Failed to execute the command
             out_msg = f"⚠️ **Error {display_name}**:\n```sh\n{e}\n```"
@@ -209,7 +215,7 @@ class LinuxMonitor:
         stderr_str: str = stderr.decode(encoding='utf-8').replace('`', '"').strip()
 
         # Check if the command executed successfully
-        res: Optional[bool] = (returncode == 0) if (returncode != -1) else None
+        res: Optional[bool] = (returncode == 0) if (returncode != None) else None
         if res and check_also_stdout_not_containing:
             res = check_also_stdout_not_containing not in stdout_str
 
@@ -244,7 +250,7 @@ class LinuxMonitor:
 
     #region Reboot
 
-    def reboot_server(self) -> str:
+    async def reboot_server(self) -> str:
         """
         Reboot the server.
 
@@ -253,7 +259,7 @@ class LinuxMonitor:
         IMPORTANT: To be usable, the user must have the right to execute `sudo /sbin/reboot` command without password.
         """
         logging.info(msg="Rebooting the server...")
-        _, out_msg = self.execute_and_verify(command=["sudo", "/sbin/reboot"], display_name="Server reboot", timeout_in_sec=None, display_only_if_critical=False)
+        _, out_msg = await self.execute_and_verify(command=["sudo", "/sbin/reboot"], display_name="Server reboot", timeout_in_sec=None, display_only_if_critical=False)
         return out_msg
 
     #endregion
@@ -721,7 +727,7 @@ class LinuxMonitor:
 
     #region Ping Websites
 
-    def _ping_website(self, website: str, display_name: str, timeout_in_sec: int, display_only_if_critical: bool=False) -> str:
+    async def _ping_website(self, website: str, display_name: str, timeout_in_sec: int, display_only_if_critical: bool=False) -> str:
         """
         Ping a website.
 
@@ -735,7 +741,7 @@ class LinuxMonitor:
         display_name = f"[{display_name}](https://{website})"
 
         start_time: float = time.time()
-        res, out_msg = self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
+        res, out_msg = await self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
         end_time: float = time.time()
 
         if res == True and not display_only_if_critical:
@@ -745,7 +751,7 @@ class LinuxMonitor:
 
         return out_msg
 
-    def ping_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
+    async def ping_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         """
         Ping all websites configured in the JSON configuration file.
 
@@ -758,7 +764,7 @@ class LinuxMonitor:
         for ping_config in self.config['pings']:
             if is_private or is_private == ping_config['is_private']:
                 timeout_in_sec: int = ping_config.get('timeout_in_sec', 5)
-                result: str = self._ping_website(website=ping_config['website'], display_name=ping_config['display_name'], timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
+                result: str = await self._ping_website(website=ping_config['website'], display_name=ping_config['display_name'], timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
                 if result:
                     if out_msg:
                         out_msg += "\n"
@@ -801,7 +807,7 @@ class LinuxMonitor:
         logging.info(msg=out_msg)
         return out_msg
 
-    def restart_service(self, is_private: bool, service_name: str) -> str:
+    async def restart_service(self, is_private: bool, service_name: str) -> str:
         """
         Restart a specific service.
 
@@ -835,7 +841,7 @@ class LinuxMonitor:
         logging.info(f"Trying to restart {display_name} (command: {service_call}) in less than {timeout_in_sec}sec...")
 
         start_time: float = time.time()
-        res, out_msg = self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+        res, out_msg = await self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
         end_time: float = time.time()
 
         if res == True:
@@ -845,7 +851,7 @@ class LinuxMonitor:
 
         return out_msg
 
-    def restart_all_services(self, is_private: bool) -> str:
+    async def restart_all_services(self, is_private: bool) -> str:
         """
         Restart all services allowed to restart which are configured in the JSON configuration file.
 
@@ -856,7 +862,7 @@ class LinuxMonitor:
         out_msg: str = ""
         for service_name in self.config["services"].keys():
             if is_private or self.config["services"][service_name]['is_private'] == is_private:
-                res: str = self.restart_service(is_private=is_private, service_name=service_name)
+                res: str = await self.restart_service(is_private=is_private, service_name=service_name)
                 if res != "":
                     if out_msg:
                         out_msg += "\n"
@@ -867,7 +873,7 @@ class LinuxMonitor:
 
         return out_msg
 
-    def _get_service_status(self, is_private: bool, service_name: str) -> Tuple[Optional[bool], str]:
+    async def _get_service_status(self, is_private: bool, service_name: str) -> Tuple[Optional[bool], str]:
         """
         Get the status of a specific service.
 
@@ -891,10 +897,10 @@ class LinuxMonitor:
         status_command = service['status_command']
         check_also_stdout_not_containing = service.get('check_also_stdout_not_containing', None)
 
-        res, out_msg = self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
+        res, out_msg = await self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
         return res, out_msg
 
-    def check_all_services_status(self, is_private: bool) -> str:
+    async def check_all_services_status(self, is_private: bool) -> str:
         """
         Check the status of all services configured in the JSON configuration file.
 
@@ -923,7 +929,7 @@ class LinuxMonitor:
 
             for service_name in self.config["services"].keys():
                 if is_private or self.config["services"][service_name]['is_private'] == is_private:
-                    status, status_msg = self._get_service_status(is_private=is_private, service_name=service_name)
+                    status, status_msg = await self._get_service_status(is_private=is_private, service_name=service_name)
                     service_status: str = status_to_string(res=status)
                     service_icon: str = status_to_icon(res=status)
                     if out_msg != "":
@@ -937,7 +943,7 @@ class LinuxMonitor:
 
         return out_msg
 
-    def check_all_services_status_and_restart_if_down(self, is_private: bool) -> str:
+    async def check_all_services_status_and_restart_if_down(self, is_private: bool) -> str:
         """
         Check the status of all services configured in the JSON configuration file and restart them if they are inactive.
 
@@ -949,7 +955,7 @@ class LinuxMonitor:
         try:
             for service_name in self.config["services"].keys():
                 if is_private or self.config["services"][service_name]['is_private'] == is_private:
-                    status, status_msg = self._get_service_status(is_private=is_private, service_name=service_name)
+                    status, status_msg = await self._get_service_status(is_private=is_private, service_name=service_name)
                     if status is False:
                         out_msg: str = f"❌ **{self.config['services'][service_name]['display_name']} inactive**. Restarting the service is necessary."
                         logging.warning(msg=out_msg)
@@ -957,7 +963,7 @@ class LinuxMonitor:
                             out_msg += f"\n{status_msg}"
 
                         out_msg_full += out_msg + "\n"
-                        out_msg_full += self.restart_service(is_private=is_private, service_name=service_name) + "\n"
+                        out_msg_full += await self.restart_service(is_private=is_private, service_name=service_name) + "\n"
                     elif status is None:
                         out_msg: str = f"⚠️ **Error checking status of {self.config['services'][service_name]['display_name']}** (not restarting it)."
                         logging.error(msg=out_msg)
@@ -1371,7 +1377,7 @@ class LinuxMonitor:
 
         return res, out_msg
 
-    def check_all_ports(self, is_private: bool, display_only_if_critical: bool=False, restart_if_down: bool=False) -> str:
+    async def check_all_ports(self, is_private: bool, display_only_if_critical: bool=False, restart_if_down: bool=False) -> str:
         """
         Check all ports configured in the JSON configuration file (and restart the service if the port is down and service_name_to_restart added in config file).
 
@@ -1405,7 +1411,7 @@ class LinuxMonitor:
                         if out_msg != "":
                             out_msg += "\n"
 
-                        restart_res: str = self.restart_service(is_private=is_private, service_name=service_name_to_restart)
+                        restart_res: str = await self.restart_service(is_private=is_private, service_name=service_name_to_restart)
                         out_msg += f" - {restart_res}"
 
             if out_msg != "":
@@ -1484,7 +1490,7 @@ class LinuxMonitor:
         logging.info(msg=full_res)
         return full_res
 
-    def kill_process(self, pid: int, timeout_in_sec: int = 10) -> str:
+    async def kill_process(self, pid: int, timeout_in_sec: int = 10) -> str:
         """
         Kills a process with the specified PID.
         1. Tries to terminate the process gracefully
@@ -1522,7 +1528,7 @@ class LinuxMonitor:
 
             # Attempt to terminate the process
             terminate_command: List[str] = ['sudo', '/bin/kill', '-TERM', str(pid)]
-            result_terminate, _ = self.execute_and_verify(command=terminate_command, display_name=f"stop process {pid} ({process_name})", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+            result_terminate, _ = await self.execute_and_verify(command=terminate_command, display_name=f"stop process {pid} ({process_name})", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
 
             if result_terminate == True:
                 out_msg = f"✅ **Process {pid} ({process_name}) stopped with success** (nicely)).\n"
@@ -1534,7 +1540,7 @@ class LinuxMonitor:
 
                 # Attempt to kill the process
                 kill_command = ['sudo', '/bin/kill', '-KILL', str(pid)]
-                _, strerror_kill = self.execute_and_verify(command=kill_command, display_name=f"kill process {pid} ({process_name})", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+                _, strerror_kill = await self.execute_and_verify(command=kill_command, display_name=f"kill process {pid} ({process_name})", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
                 out_msg += strerror_kill
 
             if process_cpu_percent > 0:
@@ -1624,7 +1630,8 @@ class LinuxMonitor:
         if not self.allow_scheduled_tasks_check_for_issues:
             raise Exception("Scheduled tasks are not allowed")
 
-        await asyncio.sleep(delay=10)  # Sleep for 10 sec before lauching the scheduled tasks (to allow the lib to be ready)
+        logging.info(msg=f"Waiting for 45 seconds before starting the execution of {'private' if is_private else 'public'} scheduled tasks to allow the discord bot and linux server to be ready...")
+        await asyncio.sleep(delay=45)  # Sleep for 45 sec before lauching the scheduled tasks (to allow the lib to be ready)
 
         datetime_last_disk_usage_error_displayed: Optional[datetime] = None
         datetime_last_folder_usage_error_displayed: Optional[datetime] = None
@@ -1649,7 +1656,7 @@ class LinuxMonitor:
             logging.info(msg="Checking services status and all disk usage, CPU, RAM, Swap, CPU temperature and ping of websites periodically...")
             try:
                 # Services status
-                msg: str = self.check_all_services_status_and_restart_if_down(is_private=is_private)
+                msg: str = await self.check_all_services_status_and_restart_if_down(is_private=is_private)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_services_error_displayed is None or ((datetime.now() - datetime_last_services_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -1733,7 +1740,7 @@ class LinuxMonitor:
                     logging.info(msg="- ✅ Certificates are OK.")
 
                 # Ping
-                msg = self.ping_all_websites(is_private=is_private, display_only_if_critical=True)
+                msg = await self.ping_all_websites(is_private=is_private, display_only_if_critical=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_ping_error_displayed is None or ((datetime.now() - datetime_last_ping_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -1754,7 +1761,7 @@ class LinuxMonitor:
                     logging.info(msg="- ✅ Ping of all websites are OK.")
 
                 # Ports
-                msg = self.check_all_ports(is_private=is_private, display_only_if_critical=True, restart_if_down=True)
+                msg = await self.check_all_ports(is_private=is_private, display_only_if_critical=True, restart_if_down=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_port_error_displayed is None or ((datetime.now() - datetime_last_port_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -1922,7 +1929,8 @@ class LinuxMonitor:
         if not self.allow_scheduled_task_show_info:
             raise Exception("Scheduled show info tasks are not allowed")
 
-        await asyncio.sleep(delay=10)
+        logging.info(msg=f"Waiting for 45 seconds before starting the execution of {'private' if is_private else 'public'} show info scheduled tasks to allow the discord bot and linux server to be ready...")
+        await asyncio.sleep(delay=45)
 
         if not self.start_scheduled_task_show_info_immediately:
             logging.info(msg=f"Waiting for {self.duration_in_sec_wait_between_each_schedule_task_show_info_execution} seconds before starting the execution of {'private' if is_private else 'public'} show info scheduled tasks...")
@@ -1934,7 +1942,7 @@ class LinuxMonitor:
                 logging.info(msg="-----------------------------------------------")
 
                 # Services status
-                msg: str = self.check_all_services_status_and_restart_if_down(is_private=is_private)
+                msg: str = await self.check_all_services_status_and_restart_if_down(is_private=is_private)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"
@@ -1962,14 +1970,14 @@ class LinuxMonitor:
                     out_msg += msg
 
                 # Ping
-                msg = self.ping_all_websites(is_private=is_private, display_only_if_critical=False)
+                msg = await self.ping_all_websites(is_private=is_private, display_only_if_critical=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"
                     out_msg += msg
 
                 # Ports
-                msg = self.check_all_ports(is_private=is_private, display_only_if_critical=False, restart_if_down=False)
+                msg = await self.check_all_ports(is_private=is_private, display_only_if_critical=False, restart_if_down=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"
