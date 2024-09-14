@@ -676,13 +676,16 @@ class LinuxMonitor:
                 dispo += f"{int(minutes)}min "
             if seconds >= 1:
                 dispo += f"{int(seconds)}sec "
+            dispo += "ago"
 
             out_msg: str = ""
             if uptime_seconds < self.critical_uptime_seconds:
-                out_msg = f"- 🚨 **Server restarted recently**:\n- {dispo}(started on {boot_time})"
+                out_msg = f"- 🚨 **Server restarted recently**:\n- {dispo} (started on {boot_time})"
+                logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if uptime_seconds < self.warning_uptime_seconds:
-                    out_msg = f"- ⚠️ **Server restarted recently**: {dispo}(started on {boot_time})"
+                    out_msg = f"- ⚠️ **Server restarted recently**: {dispo} (started on {boot_time})"
+                    logging.warning(msg=out_msg)
                 else:
                     # Funny emoji depending on uptime if everything is fine
                     emoji: str = ""
@@ -703,7 +706,7 @@ class LinuxMonitor:
                     else:
                         emoji = "☢️"
 
-                    out_msg = f"- {emoji} **{dispo}**(started on {boot_time})"
+                    out_msg = f"- {emoji} **{dispo}** (started on {boot_time})"
 
             if out_msg != "":
                 out_msg = f"# 🕒 System availability 🕒\n{out_msg}"
