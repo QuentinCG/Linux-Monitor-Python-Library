@@ -75,49 +75,49 @@ python3 -m linuxmonitor --start_scheduled_task_show_info --config_file config-ex
 
 
 # View disk space, CPU, RAM, ...
-python3 -m linuxmonitor --usage --config_file config-example.json
+python3 -m linuxmonitor --usage --config_file config-example.json --nodebug
 
 # View basic system information
-python3 -m linuxmonitor --os_infos --config_file config-example.json
+python3 -m linuxmonitor --os_infos --config_file config-example.json --nodebug
 
 # View connected users
-python3 -m linuxmonitor --users --config_file config-example.json
+python3 -m linuxmonitor --users --config_file config-example.json --nodebug
 
 # View last user connections
-python3 -m linuxmonitor --user_logins --config_file config-example.json
+python3 -m linuxmonitor --user_logins --config_file config-example.json --nodebug
 
 # Check websites (ping)
-python3 -m linuxmonitor --ping --config_file config-example.json
+python3 -m linuxmonitor --ping --config_file config-example.json --nodebug
 
 # Check websites access with optional authentication (GET request)
-python3 -m linuxmonitor --websites --config_file config-example.json
+python3 -m linuxmonitor --websites --config_file config-example.json --nodebug
 
 # Check SSL certificates
-python3 -m linuxmonitor --certificates --config_file config-example.json
+python3 -m linuxmonitor --certificates --config_file config-example.json --nodebug
 
 # Check if services are running and restart if down
-python3 -m linuxmonitor --services_status --config_file config-example.json
+python3 -m linuxmonitor --services_status --config_file config-example.json --nodebug
 
 # List all available services
-python3 -m linuxmonitor --list_services --config_file config-example.json
+python3 -m linuxmonitor --list_services --config_file config-example.json --nodebug
 
 # Restart all services
-python3 -m linuxmonitor --restart_all --config_file config-example.json
+python3 -m linuxmonitor --restart_all --config_file config-example.json --nodebug
 
 # Restart a service
-python3 -m linuxmonitor --restart_service SERVICE_NAME_HERE --config_file config-example.json
+python3 -m linuxmonitor --restart_service SERVICE_NAME_HERE --config_file config-example.json --nodebug
 
 # Check ports
-python3 -m linuxmonitor --ports --config_file config-example.json
+python3 -m linuxmonitor --ports --config_file config-example.json --nodebug
 
 # List active processes
-python3 -m linuxmonitor --list_processes --config_file config-example.json
+python3 -m linuxmonitor --list_processes --config_file config-example.json --nodebug
 
 # Stop a process by PID
-python3 -m linuxmonitor --kill_process PID_HERE --config_file config-example.json
+python3 -m linuxmonitor --kill_process PID_HERE --config_file config-example.json --nodebug
 
 # Restart the entire server
-python3 -m linuxmonitor --reboot_server --config_file config-example.json
+python3 -m linuxmonitor --reboot_server --config_file config-example.json --nodebug
 ```
 
 ## How to use in python script

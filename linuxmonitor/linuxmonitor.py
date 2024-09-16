@@ -816,13 +816,13 @@ class LinuxMonitor:
 
                     # Check if the status code is within the allowed list
                     if response.status in allowed_statuses:
-                        out_msg: str = f"✅ **{display_name} answered with status code {response.status}**."
+                        out_msg: str = f"✅ **{display_name} answered with valid status code {response.status}**."
                         logging.info(msg=out_msg)
                         return True, out_msg
                     else:
                         # Get the reason phrase (e.g., "Unauthorized" for 401)
                         status_reason: str = responses.get(response.status, "Unknown status")
-                        out_msg = f"❌ **{display_name} answered with status code {response.status} - {status_reason}**."
+                        out_msg = f"❌ **{display_name} answered with invalid status code {response.status} - {status_reason}**."
                         logging.warning(msg=out_msg)
                         return False, out_msg
 
@@ -847,11 +847,12 @@ class LinuxMonitor:
                     token: Optional[str] = website_config.get('token', None)
                     additional_allowed_statuses: List[int] = website_config.get('additional_allowed_statuses', [])
 
-                    result, msg = await self._check_website(url=url, display_name=display_name, timeout_in_sec=timeout_in_sec,
-                                                                       auth_type=auth_type, username=username, password=password, token=token,
-                                                                       additional_allowed_statuses=additional_allowed_statuses,
-                                                                       display_only_if_critical=display_only_if_critical)
-                    if result:
+                    _, msg = await self._check_website(url=url, display_name=display_name, timeout_in_sec=timeout_in_sec,
+                                                                  auth_type=auth_type, username=username, password=password, token=token,
+                                                                  additional_allowed_statuses=additional_allowed_statuses,
+                                                                  display_only_if_critical=display_only_if_critical)
+
+                    if msg != "":
                         if out_msg:
                             out_msg += "\n"
                         out_msg += f"- {msg}"
