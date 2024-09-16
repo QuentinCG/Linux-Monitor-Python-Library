@@ -798,7 +798,7 @@ class LinuxMonitor:
 
             # Select the appropriate authentication method
             if auth_type == 'basic' and username and password:
-                auth = (username, password)  # Use tuple for basic auth (username, password)
+                auth = aiohttp.BasicAuth(username, password)  # Use aiohttp.BasicAuth for basic authentication
             elif auth_type == 'digest' and username and password:
                 return False, f"❌ **Digest authentication not supported, cannot check {display_name}**."
             elif auth_type == 'bearer' and token:
@@ -826,11 +826,11 @@ class LinuxMonitor:
                         logging.warning(msg=out_msg)
                         return False, out_msg
 
-        except aiohttp.ClientError as e:
-            out_msg = f"⚠️ **Error checking {display_name}**:\n```sh\n{e}\n```"
-            return False, out_msg
         except asyncio.TimeoutError:
             out_msg = f"⚠️ **Error checking {display_name}: Timeout**"
+            return False, out_msg
+        except Exception as e:
+            out_msg = f"⚠️ **Error checking {display_name}**:\n```sh\n{e}\n```"
             return False, out_msg
 
     async def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
