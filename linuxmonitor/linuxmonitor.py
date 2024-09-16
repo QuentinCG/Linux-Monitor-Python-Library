@@ -179,7 +179,7 @@ class LinuxMonitor:
 
     #region Execute Command
 
-    async def execute_and_verify(self, command: List[str], display_name: str, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[Optional[bool], str]:
+    async def execute_and_verify(self, command: List[str], display_name: str, show_only_std_and_exception: bool, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[Optional[bool], str]:
         """
         Execute a shell command asynchronously and verify its correct execution.
 
@@ -211,7 +211,10 @@ class LinuxMonitor:
                 return None, f"⚠️ **Error {display_name}**:\n- Failed to execute the command in less than {timeout_in_sec} seconds)"
         except Exception as e:
             # Failed to execute the command
-            out_msg = f"⚠️ **Error {display_name}**:\n```sh\n{e}\n```"
+            if not show_only_std_and_exception:
+                out_msg = f"⚠️ **Error {display_name}**:\n```sh\n{e}\n```"
+            else:
+                out_msg = f"```sh\n{e}\n```"
             logging.exception(msg=out_msg)
             return None, out_msg
 
@@ -227,22 +230,25 @@ class LinuxMonitor:
         out_msg: str = ""
         if res == False:
             # Command returned an error code
-            out_msg = f"❌ **Error {display_name}**\n"
+            if not show_only_std_and_exception:
+                out_msg = f"❌ **Error {display_name}**\n"
             out_msg += f"- Error code: {returncode}"
 
             if stderr_str != "":
-                out_msg += f"- Error log:\n```sh\n{stderr_str}\n```"
+                out_msg += f"\n- Error log:\n```sh\n{stderr_str}\n```"
 
             if stdout_str != "":
-                out_msg += f"- Info:\n```sh\n{stdout_str}\n```"
+                out_msg += f"\n- Info:\n```sh\n{stdout_str}\n```"
         elif res == None:
             # Command timed out
-            out_msg = f"⚠️ **Error {display_name}**\n"
+            if not show_only_std_and_exception:
+                out_msg = f"⚠️ **Error {display_name}**\n"
             out_msg += f"- Failed to wait for the command to finish (due to timeout of {timeout_in_sec} seconds)"
         else:
             # Command executed successfully
             if not display_only_if_critical:
-                out_msg = f"✅ **{display_name} executed successfully**"
+                if not show_only_std_and_exception:
+                    out_msg = f"✅ **{display_name} executed successfully**"
 
         if res == True:
             logging.info(msg=f"Command {display_name} (command {command}) executed successfully")
@@ -264,7 +270,7 @@ class LinuxMonitor:
         IMPORTANT: To be usable, the user must have the right to execute `sudo /sbin/reboot` command without password.
         """
         logging.info(msg="Rebooting the server...")
-        _, out_msg = await self.execute_and_verify(command=["sudo", "/sbin/reboot"], display_name="Server reboot", timeout_in_sec=None, display_only_if_critical=False)
+        _, out_msg = await self.execute_and_verify(command=["sudo", "/sbin/reboot"], display_name="Server reboot", show_only_std_and_exception=False, timeout_in_sec=None, display_only_if_critical=False)
         return out_msg
 
     #endregion
@@ -747,7 +753,7 @@ class LinuxMonitor:
             display_name = f"[{display_name}](https://{website})"
 
             start_time: float = time.time()
-            res, out_msg = await self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
+            res, out_msg = await self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", show_only_std_and_exception=False, timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
             end_time: float = time.time()
 
             if res == True and not display_only_if_critical:
@@ -938,7 +944,7 @@ class LinuxMonitor:
             logging.info(f"Trying to restart {display_name} (command: {service_call}) in less than {timeout_in_sec}sec...")
 
             start_time: float = time.time()
-            res, out_msg = await self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+            res, out_msg = await self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", show_only_std_and_exception=False, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
             end_time: float = time.time()
 
             if res == True:
@@ -1004,7 +1010,7 @@ class LinuxMonitor:
             status_command = service['status_command']
             check_also_stdout_not_containing = service.get('check_also_stdout_not_containing', None)
 
-            res, out_msg = await self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
+            res, out_msg = await self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", show_only_std_and_exception=True, timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
             return res, out_msg
         except Exception as e:
             out_msg = f"⚠️ **Error checking status of service {service_name}**:\n```sh\n{e}\n```"
@@ -1644,7 +1650,7 @@ class LinuxMonitor:
 
             # Attempt to terminate the process
             terminate_command: List[str] = ['sudo', '/bin/kill', '-TERM', str(pid)]
-            result_terminate, _ = await self.execute_and_verify(command=terminate_command, display_name=f"stop process {pid} ({process_name})", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+            result_terminate, _ = await self.execute_and_verify(command=terminate_command, display_name=f"stop process {pid} ({process_name})", show_only_std_and_exception=False, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
 
             if result_terminate == True:
                 out_msg = f"✅ **Process {pid} ({process_name}) stopped with success** (nicely)).\n"
@@ -1656,7 +1662,7 @@ class LinuxMonitor:
 
                 # Attempt to kill the process
                 kill_command = ['sudo', '/bin/kill', '-KILL', str(pid)]
-                _, strerror_kill = await self.execute_and_verify(command=kill_command, display_name=f"kill process {pid} ({process_name})", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+                _, strerror_kill = await self.execute_and_verify(command=kill_command, display_name=f"kill process {pid} ({process_name})", show_only_std_and_exception=True, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
                 out_msg += strerror_kill
 
             if process_cpu_percent > 0:
