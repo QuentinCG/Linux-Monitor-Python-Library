@@ -30,7 +30,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.2.3 (2024/09/16)"
+__version__ = "1.2.5 (2024/09/16)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -944,13 +944,18 @@ class LinuxMonitor:
             logging.info(f"Trying to restart {display_name} (command: {service_call}) in less than {timeout_in_sec}sec...")
 
             start_time: float = time.time()
-            res, out_msg = await self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", show_only_std_and_exception=False, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+            res, res_msg = await self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", show_only_std_and_exception=True, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
             end_time: float = time.time()
 
             if res == True:
                 readable_duration: str = "{:.2f}".format(end_time - start_time)
                 out_msg = f"✅ **{display_name} restarted with success** in {readable_duration}sec."
                 logging.info(msg=out_msg)
+            else:
+                out_msg = f"❌ **Error restarting service {display_name}**"
+                if res_msg and res_msg != "":
+                    out_msg += f"\n{res_msg}"
+                logging.warning(msg=out_msg)
 
             return out_msg
         except Exception as e:
@@ -1071,10 +1076,11 @@ class LinuxMonitor:
         out_msg_full: str = ""
         try:
             for service_name in self.config["services"].keys():
+                out_msg: str = ""
                 if is_private or self.config["services"][service_name]['is_private'] == is_private:
                     status, status_msg = await self._get_service_status(is_private=is_private, service_name=service_name)
                     if status is False:
-                        out_msg: str = f"❌ **{self.config['services'][service_name]['display_name']} inactive**. Restarting the service is necessary."
+                        out_msg = f"❌ **{self.config['services'][service_name]['display_name']} inactive**. Restarting the service is necessary."
                         logging.warning(msg=out_msg)
                         if status_msg != "":
                             out_msg += f"\n{status_msg}"
