@@ -47,7 +47,6 @@ import platform
 import re
 import logging
 import asyncio
-from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 from http.client import responses
 import aiohttp
 
@@ -799,11 +798,11 @@ class LinuxMonitor:
 
             # Select the appropriate authentication method
             if auth_type == 'basic' and username and password:
-                auth = HTTPBasicAuth(username=username, password=password)
+                auth = (username, password)  # Use tuple for basic auth (username, password)
             elif auth_type == 'digest' and username and password:
-                auth = HTTPDigestAuth(username=username, password=password)
+                return False, f"❌ **Digest authentication not supported, cannot check {display_name}**."
             elif auth_type == 'bearer' and token:
-                headers: Dict[str, str] = {'Authorization': f'Bearer {token}'}
+                headers = {'Authorization': f'Bearer {token}'}
 
             # Create an aiohttp client session to make the request
             async with aiohttp.ClientSession() as session:

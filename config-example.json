@@ -63,14 +63,6 @@
             "timeout_in_sec": 5
         },
         {
-            "url": "https://postman-echo.com/digest-auth",
-            "display_name": "Digest auth website",
-            "auth_type": "digest",
-            "username": "postman",
-            "password": "password",
-            "timeout_in_sec": 5
-        },
-        {
             "url": "https://postman-echo.com/bearer-auth",
             "display_name": "Bearer auth website (no mock, will fail)",
             "auth_type": "bearer",
