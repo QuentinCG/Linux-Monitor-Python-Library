@@ -30,7 +30,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.2.0 (2024/09/16)"
+__version__ = "1.2.1 (2024/09/16)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -806,7 +806,9 @@ class LinuxMonitor:
 
             # Create an aiohttp client session to make the request
             async with aiohttp.ClientSession() as session:
+                start_time: float = time.time()
                 async with session.get(url, auth=auth, headers=headers, timeout=timeout_in_sec) as response:
+                    end_time: float = time.time()
                     # Default allowed status codes (200-299)
                     allowed_statuses = list(range(200, 300))
 
@@ -816,7 +818,7 @@ class LinuxMonitor:
 
                     # Check if the status code is within the allowed list
                     if response.status in allowed_statuses:
-                        out_msg: str = f"✅ **{display_name} answered with valid status code {response.status}**."
+                        out_msg: str = f"✅ **{display_name} answered with valid status code {response.status}** in {end_time - start_time:.2f}sec."
                         logging.info(msg=out_msg)
                         return True, out_msg
                     else:
