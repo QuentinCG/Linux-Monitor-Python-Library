@@ -47,8 +47,9 @@ import platform
 import re
 import logging
 import asyncio
-import requests
 from requests.auth import HTTPBasicAuth, HTTPDigestAuth
+from http.client import responses
+import aiohttp
 
 class LinuxMonitor:
     def __init__(self, config_file: str, allow_scheduled_tasks_check_for_issues: bool, allow_scheduled_task_show_info: bool) -> None:
@@ -789,54 +790,68 @@ class LinuxMonitor:
 
     #region Check website response
 
-    def _check_website(self, url: str, display_name: str, auth_type: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None, token: Optional[str] = None, additional_allowed_statuses: List[int] = [], display_only_if_critical: bool=False):
+    async def _check_website(self, url: str, display_name: str, timeout_in_sec: int = 5, auth_type: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None, token: Optional[str] = None, additional_allowed_statuses: List[int] = [], display_only_if_critical: bool=False) -> Tuple[bool, str]:
         try:
             display_name = f"[{display_name}]({url})"
 
             auth = None
+            headers: Dict[str, str] = {}
 
             # Select the appropriate authentication method
             if auth_type == 'basic' and username and password:
-                auth = HTTPBasicAuth(username, password)
+                auth = HTTPBasicAuth(username=username, password=password)
             elif auth_type == 'digest' and username and password:
-                auth = HTTPDigestAuth(username, password)
+                auth = HTTPDigestAuth(username=username, password=password)
             elif auth_type == 'bearer' and token:
-                headers = {'Authorization': f'Bearer {token}'}
-            else:
-                headers = {}
+                headers: Dict[str, str] = {'Authorization': f'Bearer {token}'}
 
-            # Make the request with the selected authentication method or without authentication
-            response = requests.get(url, auth=auth, headers=headers)
+            # Create an aiohttp client session to make the request
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, auth=auth, headers=headers, timeout=timeout_in_sec) as response:
+                    # Default allowed status codes (200-299)
+                    allowed_statuses = list(range(200, 300))
 
-            # Default allowed status codes (200-299)
-            allowed_statuses = list(range(200, 300))
+                    # Include any additional allowed status codes if provided
+                    if additional_allowed_statuses:
+                        allowed_statuses += additional_allowed_statuses
 
-            # Include any additional allowed status codes if provided
-            if additional_allowed_statuses and len (additional_allowed_statuses) > 0:
-                allowed_statuses += additional_allowed_statuses
+                    # Check if the status code is within the allowed list
+                    if response.status in allowed_statuses:
+                        out_msg: str = f"✅ **{display_name} answered with status code {response.status}**."
+                        logging.info(msg=out_msg)
+                        return True, out_msg
+                    else:
+                        # Get the reason phrase (e.g., "Unauthorized" for 401)
+                        status_reason: str = responses.get(response.status, "Unknown status")
+                        out_msg = f"❌ **{display_name} answered with status code {response.status} - {status_reason}**."
+                        logging.warning(msg=out_msg)
+                        return False, out_msg
 
-            # Check if the status code is within the allowed list
-            if response.status_code in allowed_statuses:
-                out_msg: str = f"✅ **{display_name} answered with status code {response.status_code}**."
-                logging.info(msg=out_msg)
-                return True, out_msg
-            else:
-                # Get the reason phrase (e.g., "Unauthorized" for 401)
-                status_reason = requests.status_codes._codes.get(response.status_code, ['Unknown Status'])[0].replace('_', ' ').title()
-                out_msg = f"❌ **{display_name} answered with status code {response.status_code} - {status_reason}**."
-                logging.warning(msg=out_msg)
-                return False, out_msg
-
-        except requests.exceptions.RequestException as e:
+        except aiohttp.ClientError as e:
             out_msg = f"⚠️ **Error checking {display_name}**:\n```sh\n{e}\n```"
             return False, out_msg
+        except asyncio.TimeoutError:
+            out_msg = f"⚠️ **Error checking {display_name}: Timeout**"
+            return False, out_msg
 
-    def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
+    async def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         try:
             out_msg: str = ""
             for website_config in self.config['websites']:
                 if is_private or is_private == website_config['is_private']:
-                    result, msg = self._check_website(url=website_config['url'], display_name=website_config['display_name'], auth_type=website_config.get('auth_type', None), username=website_config.get('username', None), password=website_config.get('password', None), token=website_config.get('token', None), additional_allowed_statuses=website_config.get('additional_allowed_statuses', []), display_only_if_critical=display_only_if_critical)
+                    timeout_in_sec: int = website_config.get('timeout_in_sec', 5)
+                    url: str = website_config['url']
+                    display_name: str = website_config.get('display_name', url)
+                    auth_type: Optional[str] = website_config.get('auth_type', None)
+                    username: Optional[str] = website_config.get('username', None)
+                    password: Optional[str] = website_config.get('password', None)
+                    token: Optional[str] = website_config.get('token', None)
+                    additional_allowed_statuses: List[int] = website_config.get('additional_allowed_statuses', [])
+
+                    result, msg = await self._check_website(url=url, display_name=display_name, timeout_in_sec=timeout_in_sec,
+                                                                       auth_type=auth_type, username=username, password=password, token=token,
+                                                                       additional_allowed_statuses=additional_allowed_statuses,
+                                                                       display_only_if_critical=display_only_if_critical)
                     if result:
                         if out_msg:
                             out_msg += "\n"
@@ -928,7 +943,7 @@ class LinuxMonitor:
 
             return out_msg
         except Exception as e:
-            out_msg = f"⚠️ **Error restarting {display_name}**:\n```sh\n{e}\n```"
+            out_msg = f"⚠️ **Error restarting service {service_name}**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
             return out_msg
 
@@ -987,7 +1002,7 @@ class LinuxMonitor:
             res, out_msg = await self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
             return res, out_msg
         except Exception as e:
-            out_msg = f"⚠️ **Error checking status of {display_name}**:\n```sh\n{e}\n```"
+            out_msg = f"⚠️ **Error checking status of service {service_name}**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
             return None, out_msg
 
@@ -1863,7 +1878,7 @@ class LinuxMonitor:
                     logging.info(msg="- ✅ Ping of all websites are OK.")
 
                 # Websites availability (GET request)
-                msg = await self.check_all_websites_availability(is_private=is_private, display_only_if_critical=True)
+                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_websites_error_displayed is None or ((datetime.now() - datetime_last_websites_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2100,7 +2115,7 @@ class LinuxMonitor:
                     out_msg += msg
 
                 # Websites availability (GET request)
-                msg = await self.check_all_websites_availability(is_private=is_private, display_only_if_critical=False)
+                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"
