@@ -30,7 +30,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.2.1 (2024/09/16)"
+__version__ = "1.2.2 (2024/09/16)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -818,9 +818,12 @@ class LinuxMonitor:
 
                     # Check if the status code is within the allowed list
                     if response.status in allowed_statuses:
-                        out_msg: str = f"✅ **{display_name} answered with valid status code {response.status}** in {end_time - start_time:.2f}sec."
-                        logging.info(msg=out_msg)
-                        return True, out_msg
+                        if not display_only_if_critical:
+                            out_msg: str = f"✅ **{display_name} answered with valid status code {response.status}** in {end_time - start_time:.2f}sec."
+                            logging.info(msg=out_msg)
+                            return True, out_msg
+                        else:
+                            return True, ""
                     else:
                         # Get the reason phrase (e.g., "Unauthorized" for 401)
                         status_reason: str = responses.get(response.status, "Unknown status")
