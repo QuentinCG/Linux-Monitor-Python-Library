@@ -89,6 +89,9 @@ python3 -m linuxmonitor --user_logins --config_file config-example.json
 # Check websites (ping)
 python3 -m linuxmonitor --ping --config_file config-example.json
 
+# Check websites access with optional authentication (GET request)
+python3 -m linuxmonitor --websites --config_file config-example.json
+
 # Check SSL certificates
 python3 -m linuxmonitor --certificates --config_file config-example.json
 
