@@ -232,13 +232,13 @@ class LinuxMonitor:
             # Command returned an error code
             if not show_only_std_and_exception:
                 out_msg = f"❌ **Error {display_name}**\n"
-            out_msg += f"- Error code: {returncode}"
+            out_msg += f" - Error code: `{returncode}`"
 
             if stderr_str != "":
-                out_msg += f"\n- Error log:\n```sh\n{stderr_str}\n```"
+                out_msg += f"\n - Error log:\n```sh\n{stderr_str}\n```"
 
             if stdout_str != "":
-                out_msg += f"\n- Info:\n```sh\n{stdout_str}\n```"
+                out_msg += f"\n - Info:\n```sh\n{stdout_str}\n```"
         elif res == None:
             # Command timed out
             if not show_only_std_and_exception:
@@ -1080,7 +1080,7 @@ class LinuxMonitor:
                 if is_private or self.config["services"][service_name]['is_private'] == is_private:
                     status, status_msg = await self._get_service_status(is_private=is_private, service_name=service_name)
                     if status is False:
-                        out_msg = f"❌ **{self.config['services'][service_name]['display_name']} inactive**. Restarting the service is necessary."
+                        out_msg = f"- ❌ **{self.config['services'][service_name]['display_name']} inactive**. Restarting the service is necessary."
                         logging.warning(msg=out_msg)
                         if status_msg != "":
                             out_msg += f"\n{status_msg}"
@@ -1088,12 +1088,15 @@ class LinuxMonitor:
                         out_msg_full += out_msg + "\n"
                         out_msg_full += await self.restart_service(is_private=is_private, service_name=service_name) + "\n"
                     elif status is None:
-                        out_msg: str = f"⚠️ **Error checking status of {self.config['services'][service_name]['display_name']}** (not restarting it)."
+                        out_msg: str = f"- ⚠️ **Error checking status of {self.config['services'][service_name]['display_name']}** (not restarting it)."
                         logging.error(msg=out_msg)
                         out_msg_full += out_msg + "\n"
         except Exception as e:
-            out_msg_full = f"**Internal error during service status check.**:\n```sh\n{e}\n```"
+            out_msg_full = f"- **Internal error during service status check.**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg_full)
+
+        if out_msg_full != "":
+            out_msg_full = f"# 📱 Services status 📱\n{out_msg_full}"
 
         return out_msg_full
 
