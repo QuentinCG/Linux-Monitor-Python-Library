@@ -1741,6 +1741,7 @@ class LinuxMonitor:
         datetime_last_swap_usage_error_displayed: Optional[datetime] = None
         datetime_last_cpu_temperature_error_displayed: Optional[datetime] = None
         datetime_last_ping_error_displayed: Optional[datetime] = None
+        datetime_last_websites_error_displayed: Optional[datetime] = None
         datetime_last_certificates_error_displayed: Optional[datetime] = None
         datetime_last_user_logins_error_displayed: Optional[datetime] = None
         datetime_last_port_error_displayed: Optional[datetime] = None
@@ -1860,6 +1861,27 @@ class LinuxMonitor:
                     datetime_last_ping_error_displayed = None
                 else:
                     logging.info(msg="- ✅ Ping of all websites are OK.")
+
+                # Websites availability (GET request)
+                msg = await self.check_all_websites_availability(is_private=is_private, display_only_if_critical=True)
+                if msg != "":
+                    logging.warning(msg=msg)
+                    if datetime_last_websites_error_displayed is None or ((datetime.now() - datetime_last_websites_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+                        datetime_last_websites_error_displayed = datetime.now()
+                    else:
+                        logging.warning(msg="Websites critical but already notified less than 12 hours ago, not notifying...")
+                elif datetime_last_websites_error_displayed is not None:
+                    msg="✅ **Websites returned to normal state**"
+                    logging.info(msg=msg)
+                    if out_msg != "":
+                        out_msg += "\n"
+                    out_msg += msg
+                    datetime_last_websites_error_displayed = None
+                else:
+                    logging.info(msg="- ✅ All websites availability (GET requests) are OK.")
 
                 # Ports
                 msg = await self.check_all_ports(is_private=is_private, display_only_if_critical=True, restart_if_down=True)
@@ -2072,6 +2094,13 @@ class LinuxMonitor:
 
                 # Ping
                 msg = await self.ping_all_websites(is_private=is_private, display_only_if_critical=False)
+                if msg != "":
+                    if out_msg != "":
+                        out_msg += "\n"
+                    out_msg += msg
+
+                # Websites availability (GET request)
+                msg = await self.check_all_websites_availability(is_private=is_private, display_only_if_critical=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"
