@@ -37,6 +37,33 @@
             "timeout_in_sec": 5
         }
     ],
+    "websites": [
+        {
+            "url": "https://google.com",
+            "display_name": "Google",
+            "additional_allowed_statuses": [401]
+        },
+        {
+            "url": "www.basicauth.dummysupersecuredwebsite.com",
+            "display_name": "Basic auth website",
+            "auth_type": "basic",
+            "username": "admin",
+            "password": "azerty"
+        },
+        {
+            "url": "www.digestauth.dummysupersecuredwebsite.com",
+            "display_name": "Digest auth website",
+            "auth_type": "digest",
+            "username": "admin",
+            "password": "azerty"
+        },
+        {
+            "url": "www.bearerauth.dummysupersecuredwebsite.com",
+            "display_name": "Bearer auth website",
+            "auth_type": "bearer",
+            "token": "azerty"
+        }
+    ],
     "disks": [
         {
             "device": "/",

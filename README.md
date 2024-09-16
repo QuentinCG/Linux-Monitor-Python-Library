@@ -21,6 +21,7 @@ List of 'check' functionalities:
   - Check disk usage
   - Check folder usage
   - Check websites basic availability (ping)
+  - Check websites access with optional authentication (GET request)
   - Check services status and restart them if needed
   - Check certificates expiration and validity
   - Check last user connections IPs

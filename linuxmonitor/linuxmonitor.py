@@ -10,6 +10,7 @@ Non exhaustive list of features (available by using it in shell or in python scr
     - Check disk usage
     - Check folder usage
     - Check websites basic availability (ping)
+    - Check websites access with optional authentication (GET request)
     - Check services status and restart them if needed
     - Check certificates expiration and validity
     - Check last user connections IPs
@@ -46,6 +47,8 @@ import platform
 import re
 import logging
 import asyncio
+import requests
+from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 
 class LinuxMonitor:
     def __init__(self, config_file: str, allow_scheduled_tasks_check_for_issues: bool, allow_scheduled_task_show_info: bool) -> None:
@@ -92,6 +95,8 @@ class LinuxMonitor:
             raise ValueError("The configuration must contain the 'services' key")
         if 'certificates' not in self.config: # type: ignore
             raise ValueError("The configuration must contain the 'certificates' key")
+        if 'websites' not in self.config: # type: ignore
+            raise ValueError("The configuration must contain the 'websites' key")
 
         # Get the basic configuration (check if it is a dictionary)
         basic_config: Dict[str, Any] = self.config.get('basic_config', {}) # type: ignore
@@ -737,19 +742,24 @@ class LinuxMonitor:
 
         :return: A string containing the result message.
         """
-        ping_command: list[str] = ["ping", "-c", "1", website]
-        display_name = f"[{display_name}](https://{website})"
+        try:
+            ping_command: list[str] = ["ping", "-c", "1", website]
+            display_name = f"[{display_name}](https://{website})"
 
-        start_time: float = time.time()
-        res, out_msg = await self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
-        end_time: float = time.time()
+            start_time: float = time.time()
+            res, out_msg = await self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
+            end_time: float = time.time()
 
-        if res == True and not display_only_if_critical:
-            res_ping_sec: str = "{:.2f}sec".format(end_time - start_time)
-            out_msg: str = f"✅ **{display_name} answered in {res_ping_sec}**."
-            logging.info(msg=out_msg)
+            if res == True and not display_only_if_critical:
+                res_ping_sec: str = "{:.2f}sec".format(end_time - start_time)
+                out_msg: str = f"✅ **{display_name} answered in {res_ping_sec}**."
+                logging.info(msg=out_msg)
 
-        return out_msg
+            return out_msg
+        except Exception as e:
+            out_msg = f"⚠️ **Error pinging {display_name}**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+            return out_msg
 
     async def ping_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         """
@@ -774,6 +784,72 @@ class LinuxMonitor:
             out_msg = f"# 🌐 Website state 🌐\n{out_msg}"
 
         return out_msg
+
+    #endregion
+
+    #region Check website response
+
+    def _check_website(self, url: str, display_name: str, auth_type: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None, token: Optional[str] = None, additional_allowed_statuses: List[int] = [], display_only_if_critical: bool=False):
+        try:
+            display_name = f"[{display_name}]({url})"
+
+            auth = None
+
+            # Select the appropriate authentication method
+            if auth_type == 'basic' and username and password:
+                auth = HTTPBasicAuth(username, password)
+            elif auth_type == 'digest' and username and password:
+                auth = HTTPDigestAuth(username, password)
+            elif auth_type == 'bearer' and token:
+                headers = {'Authorization': f'Bearer {token}'}
+            else:
+                headers = {}
+
+            # Make the request with the selected authentication method or without authentication
+            response = requests.get(url, auth=auth, headers=headers)
+
+            # Default allowed status codes (200-299)
+            allowed_statuses = list(range(200, 300))
+
+            # Include any additional allowed status codes if provided
+            if additional_allowed_statuses and len (additional_allowed_statuses) > 0:
+                allowed_statuses += additional_allowed_statuses
+
+            # Check if the status code is within the allowed list
+            if response.status_code in allowed_statuses:
+                out_msg: str = f"✅ **{display_name} answered with status code {response.status_code}**."
+                logging.info(msg=out_msg)
+                return True, out_msg
+            else:
+                # Get the reason phrase (e.g., "Unauthorized" for 401)
+                status_reason = requests.status_codes._codes.get(response.status_code, ['Unknown Status'])[0].replace('_', ' ').title()
+                out_msg = f"❌ **{display_name} answered with status code {response.status_code} - {status_reason}**."
+                logging.warning(msg=out_msg)
+                return False, out_msg
+
+        except requests.exceptions.RequestException as e:
+            out_msg = f"⚠️ **Error checking {display_name}**:\n```sh\n{e}\n```"
+            return False, out_msg
+
+    def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
+        try:
+            out_msg: str = ""
+            for website_config in self.config['websites']:
+                if is_private or is_private == website_config['is_private']:
+                    result, msg = self._check_website(url=website_config['url'], display_name=website_config['display_name'], auth_type=website_config.get('auth_type', None), username=website_config.get('username', None), password=website_config.get('password', None), token=website_config.get('token', None), additional_allowed_statuses=website_config.get('additional_allowed_statuses', []), display_only_if_critical=display_only_if_critical)
+                    if result:
+                        if out_msg:
+                            out_msg += "\n"
+                        out_msg += f"- {msg}"
+
+            if out_msg != "":
+                out_msg = f"# 🌐 Website access state 🌐\n{out_msg}"
+
+            return out_msg
+        except Exception as e:
+            out_msg = f"⚠️ **Error checking website access states**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+            return out_msg
 
     #endregion
 
@@ -816,40 +892,45 @@ class LinuxMonitor:
 
         :return: A string containing the result message.
         """
-        if service_name not in self.config['services'].keys():
-            out_msg = f"❌ **Service {service_name} not found**."
-            logging.error(msg=out_msg)
+        try:
+            if service_name not in self.config['services'].keys():
+                out_msg = f"❌ **Service {service_name} not found**."
+                logging.error(msg=out_msg)
+                return out_msg
+
+            service = self.config['services'][service_name]
+            if not is_private and is_private != service['is_private']:
+                out_msg = f"❌ **Service {service_name} not authorized to restart in public**."
+                logging.error(msg=out_msg)
+                return out_msg
+
+            display_name: str = service.get('display_name', service_name)
+            if 'restart_command' not in service:
+                out_msg = f"❌ **Restart command not found for {display_name}**."
+                logging.error(msg=out_msg)
+                return out_msg
+
+            timeout_in_sec: int = service.get('timeout_in_sec', 90)
+
+            service_call: List[str] = service['restart_command']
+            out_msg: str = ""
+
+            logging.info(f"Trying to restart {display_name} (command: {service_call}) in less than {timeout_in_sec}sec...")
+
+            start_time: float = time.time()
+            res, out_msg = await self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+            end_time: float = time.time()
+
+            if res == True:
+                readable_duration: str = "{:.2f}".format(end_time - start_time)
+                out_msg = f"✅ **{display_name} restarted with success** in {readable_duration}sec."
+                logging.info(msg=out_msg)
+
             return out_msg
-
-        service = self.config['services'][service_name]
-        if not is_private and is_private != service['is_private']:
-            out_msg = f"❌ **Service {service_name} not authorized to restart in public**."
-            logging.error(msg=out_msg)
+        except Exception as e:
+            out_msg = f"⚠️ **Error restarting {display_name}**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
             return out_msg
-
-        display_name: str = service.get('display_name', service_name)
-        if 'restart_command' not in service:
-            out_msg = f"❌ **Restart command not found for {display_name}**."
-            logging.error(msg=out_msg)
-            return out_msg
-
-        timeout_in_sec: int = service.get('timeout_in_sec', 90)
-
-        service_call: List[str] = service['restart_command']
-        out_msg: str = ""
-
-        logging.info(f"Trying to restart {display_name} (command: {service_call}) in less than {timeout_in_sec}sec...")
-
-        start_time: float = time.time()
-        res, out_msg = await self.execute_and_verify(command=service_call, display_name=f"restart {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
-        end_time: float = time.time()
-
-        if res == True:
-            readable_duration: str = "{:.2f}".format(end_time - start_time)
-            out_msg = f"✅ **{display_name} restarted with success** in {readable_duration}sec."
-            logging.info(msg=out_msg)
-
-        return out_msg
 
     async def restart_all_services(self, is_private: bool) -> str:
         """
@@ -859,19 +940,24 @@ class LinuxMonitor:
 
         :return: A string containing the result message.
         """
-        out_msg: str = ""
-        for service_name in self.config["services"].keys():
-            if is_private or self.config["services"][service_name]['is_private'] == is_private:
-                res: str = await self.restart_service(is_private=is_private, service_name=service_name)
-                if res != "":
-                    if out_msg:
-                        out_msg += "\n"
-                    out_msg += f"- {res}"
+        try:
+            out_msg: str = ""
+            for service_name in self.config["services"].keys():
+                if is_private or self.config["services"][service_name]['is_private'] == is_private:
+                    res: str = await self.restart_service(is_private=is_private, service_name=service_name)
+                    if res != "":
+                        if out_msg:
+                            out_msg += "\n"
+                        out_msg += f"- {res}"
 
-        if out_msg:
-            out_msg = f"# 📱 Restart services 📱\n{out_msg}"
+            if out_msg:
+                out_msg = f"# 📱 Restart services 📱\n{out_msg}"
 
-        return out_msg
+            return out_msg
+        except Exception as e:
+            out_msg = f"⚠️ **Error restarting services**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+            return out_msg
 
     async def _get_service_status(self, is_private: bool, service_name: str) -> Tuple[Optional[bool], str]:
         """
@@ -882,23 +968,28 @@ class LinuxMonitor:
 
         :return: A tuple containing the status of the service (True for active, False for inactive, None for error) and a string containing the result message.
         """
-        if service_name not in self.config["services"].keys():
-            logging.error(msg=f"Service {service_name} not found")
-            return None, ""
+        try:
+            if service_name not in self.config["services"].keys():
+                logging.error(msg=f"Service {service_name} not found")
+                return None, ""
 
-        service = self.config["services"][service_name]
-        display_name = service.get('display_name', service_name)
-        timeout_in_sec = service.get('timeout_in_sec', 30)
+            service = self.config["services"][service_name]
+            display_name = service.get('display_name', service_name)
+            timeout_in_sec = service.get('timeout_in_sec', 30)
 
-        if 'status_command' not in service:
-            logging.error(msg=f"Status command (status_command) not found for service {service_name}")
-            return None, ""
+            if 'status_command' not in service:
+                logging.error(msg=f"Status command (status_command) not found for service {service_name}")
+                return None, ""
 
-        status_command = service['status_command']
-        check_also_stdout_not_containing = service.get('check_also_stdout_not_containing', None)
+            status_command = service['status_command']
+            check_also_stdout_not_containing = service.get('check_also_stdout_not_containing', None)
 
-        res, out_msg = await self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
-        return res, out_msg
+            res, out_msg = await self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
+            return res, out_msg
+        except Exception as e:
+            out_msg = f"⚠️ **Error checking status of {display_name}**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+            return None, out_msg
 
     async def check_all_services_status(self, is_private: bool) -> str:
         """
@@ -1433,62 +1524,67 @@ class LinuxMonitor:
 
         :return: A string containing the result message.
         """
-        processes = []
-        for process in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info', 'create_time', 'cmdline']):
-            try:
-                create_time = datetime.fromtimestamp(process.info['create_time']).strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            processes = []
+            for process in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info', 'create_time', 'cmdline']):
+                try:
+                    create_time = datetime.fromtimestamp(process.info['create_time']).strftime("%Y-%m-%d %H:%M:%S")
 
-                cmdline = ' '.join(process.info['cmdline'])  # Join the command line arguments
-                # Remove extra spaces
-                cmdline = re.sub(r'\s+', ' ', cmdline).strip()
-                if len(cmdline) > 60:
-                    cmdline = cmdline[:60] + '...'  # Truncate and add ellipsis
+                    cmdline = ' '.join(process.info['cmdline'])  # Join the command line arguments
+                    # Remove extra spaces
+                    cmdline = re.sub(r'\s+', ' ', cmdline).strip()
+                    if len(cmdline) > 60:
+                        cmdline = cmdline[:60] + '...'  # Truncate and add ellipsis
 
-                processes.append({ # type: ignore
-                    'pid': process.info['pid'],
-                    'name': process.info['name'],
-                    'username': process.info['username'],
-                    'cpu_percent': process.info['cpu_percent'],
-                    'memory': process.info['memory_info'].rss,  # Resident Set Size (RSS) memory
-                    'create_time': create_time,
-                    'cmdline': cmdline
-                })
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
+                    processes.append({ # type: ignore
+                        'pid': process.info['pid'],
+                        'name': process.info['name'],
+                        'username': process.info['username'],
+                        'cpu_percent': process.info['cpu_percent'],
+                        'memory': process.info['memory_info'].rss,  # Resident Set Size (RSS) memory
+                        'create_time': create_time,
+                        'cmdline': cmdline
+                    })
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
 
-        # Sort processes by memory usage, then by CPU usage, both in descending order
-        processes.sort(key=lambda proc: (proc['memory'], proc['cpu_percent'], proc['create_time']), reverse=True) # type: ignore
+            # Sort processes by memory usage, then by CPU usage, both in descending order
+            processes.sort(key=lambda proc: (proc['memory'], proc['cpu_percent'], proc['create_time']), reverse=True) # type: ignore
 
-        full_res: str = ""
-        for proc in processes: # type: ignore
-            if not get_non_consuming_processes and proc['cpu_percent'] == 0 and proc['memory'] == 0:
-                continue
+            full_res: str = ""
+            for proc in processes: # type: ignore
+                if not get_non_consuming_processes and proc['cpu_percent'] == 0 and proc['memory'] == 0:
+                    continue
 
-            res = f"- PID **{proc['pid']}**: {proc['name']} ("
+                res = f"- PID **{proc['pid']}**: {proc['name']} ("
 
-            if proc['cpu_percent'] > 0:
-                res += f"CPU {proc['cpu_percent']}%, "
+                if proc['cpu_percent'] > 0:
+                    res += f"CPU {proc['cpu_percent']}%, "
 
-            if proc['memory'] > 0:
-                res += f"RAM {proc['memory'] // (1024 * 1024)} MB, "
+                if proc['memory'] > 0:
+                    res += f"RAM {proc['memory'] // (1024 * 1024)} MB, "
 
-            res += f"👤 {proc['username']}, "
-            res += f"⏰ {proc['create_time']}"
+                res += f"👤 {proc['username']}, "
+                res += f"⏰ {proc['create_time']}"
 
-            if proc['cmdline'] != "":
-                res += f", 📄 `{proc['cmdline']}`"
+                if proc['cmdline'] != "":
+                    res += f", 📄 `{proc['cmdline']}`"
 
-            res += ")"
+                res += ")"
+
+                if full_res != "":
+                    full_res += "\n"
+                full_res += res
 
             if full_res != "":
-                full_res += "\n"
-            full_res += res
+                full_res = f"# 🔄 Processes 🔄\n{full_res}"
 
-        if full_res != "":
-            full_res = f"# 🔄 Processes 🔄\n{full_res}"
-
-        logging.info(msg=full_res)
-        return full_res
+            logging.info(msg=full_res)
+            return full_res
+        except Exception as e:
+            out_msg = f"⚠️ **Error getting ordered processes**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+            return out_msg
 
     async def kill_process(self, pid: int, timeout_in_sec: int = 10) -> str:
         """
@@ -1576,42 +1672,47 @@ class LinuxMonitor:
 
         :return: A string containing the result message.
         """
-        interfaces = psutil.net_if_addrs()
-        stats = psutil.net_if_stats()
-        network_usage: str = ""
+        try:
+            interfaces = psutil.net_if_addrs()
+            stats = psutil.net_if_stats()
+            network_usage: str = ""
 
-        # List of interfaces to exclude (e.g., local interface)
-        excluded_interfaces = {"lo"}
+            # List of interfaces to exclude (e.g., local interface)
+            excluded_interfaces = {"lo"}
 
-        for interface in interfaces:
-            if interface in excluded_interfaces or interface not in stats:
-                continue
+            for interface in interfaces:
+                if interface in excluded_interfaces or interface not in stats:
+                    continue
 
-            ip_addresses = []
-            for snic in interfaces[interface]:
-                if snic.family == socket.AF_INET:
-                    ip_addresses.append(snic.address) # type: ignore
+                ip_addresses = []
+                for snic in interfaces[interface]:
+                    if snic.family == socket.AF_INET:
+                        ip_addresses.append(snic.address) # type: ignore
 
-            # Get network stats
-            net_stats = psutil.net_io_counters(pernic=True).get(interface, None)
-            if net_stats is None:
-                continue
+                # Get network stats
+                net_stats = psutil.net_io_counters(pernic=True).get(interface, None)
+                if net_stats is None:
+                    continue
 
-            # Convert bytes to GB for readability
-            receive_bytes: float = net_stats.bytes_recv / (1024 ** 3)
-            transmit_bytes: float = net_stats.bytes_sent / (1024 ** 3)
+                # Convert bytes to GB for readability
+                receive_bytes: float = net_stats.bytes_recv / (1024 ** 3)
+                transmit_bytes: float = net_stats.bytes_sent / (1024 ** 3)
 
-            ip_str: str = ", ".join(ip_addresses) if ip_addresses else "N/A" # type: ignore
+                ip_str: str = ", ".join(ip_addresses) if ip_addresses else "N/A" # type: ignore
+
+                if network_usage != "":
+                    network_usage += "\n"
+                network_usage += f"- {interface} ({ip_str}): ⬇️ {receive_bytes:,.2f} GB, ⬆️ {transmit_bytes:,.2f} GB"
 
             if network_usage != "":
-                network_usage += "\n"
-            network_usage += f"- {interface} ({ip_str}): ⬇️ {receive_bytes:,.2f} GB, ⬆️ {transmit_bytes:,.2f} GB"
+                network_usage = f"# 🌐 Network usage 🌐\n{network_usage}"
 
-        if network_usage != "":
-            network_usage = f"# 🌐 Network usage 🌐\n{network_usage}"
-
-        logging.info(msg=network_usage)
-        return network_usage
+            logging.info(msg=network_usage)
+            return network_usage
+        except Exception as e:
+            out_msg = f"⚠️ **Error getting network information**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+            return out_msg
 
     #endregion
 

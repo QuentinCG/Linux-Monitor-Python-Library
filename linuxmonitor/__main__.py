@@ -17,6 +17,7 @@ def main() -> None:
     parser.add_argument('--users', action='store_true', help='👥 View connected users 👥')
     parser.add_argument('--user_logins', action='store_true', help='👥 View last user connections 👥')
     parser.add_argument('--ping', action='store_true', help='🌐 Ping websites 🌐')
+    parser.add_argument('--websites', action='store_true', help='🌐 Check websites access (GET requests) 🌐')
     parser.add_argument('--certificates', action='store_true', help='🔒 Check SSL certificates 🔒')
     parser.add_argument('--reboot_server', action='store_true', help='🔄 Restart the entire server 🔄')
     parser.add_argument('--services_status', action='store_true', help='🩺 Check services are running 🩺')
@@ -99,6 +100,12 @@ def main() -> None:
         handled = True
         print("Pinging websites...")
         out_msg: str = asyncio.run(monitoring.ping_all_websites(is_private=True, display_only_if_critical=False))
+        print(out_msg)
+
+    if args.websites:
+        handled = True
+        print("Checking websites availability...")
+        out_msg: str = asyncio.run(monitoring.check_all_websites(is_private=True, display_only_if_critical=False))
         print(out_msg)
 
     if args.certificates:
