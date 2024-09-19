@@ -30,7 +30,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.2.7 (2024/09/16)"
+__version__ = "1.2.8 (2024/09/19)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -876,11 +876,8 @@ class LinuxMonitor:
                         out_msg += f"- {msg}"
 
                     if not res and restart_if_down and service_name_to_restart != "":
-                        if out_msg:
-                            out_msg += "\n"
                         restart_msg = await self.restart_service(is_private=is_private, service_name=service_name_to_restart)
-                        if restart_msg:
-                            out_msg += f"\n - {restart_msg}"
+                        out_msg += f"\n - {restart_msg}"
 
             if out_msg != "":
                 out_msg = f"# 🌐 Website access state 🌐\n{out_msg}"
