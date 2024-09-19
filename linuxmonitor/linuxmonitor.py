@@ -795,7 +795,10 @@ class LinuxMonitor:
 
     #region Check website response
 
-    async def _check_website(self, url: str, display_name: str, timeout_in_sec: int = 5, auth_type: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None, token: Optional[str] = None, additional_allowed_statuses: List[int] = [], display_only_if_critical: bool=False) -> Tuple[bool, str]:
+    async def _check_website(self, url: str, display_name: str, show_content_if_issue: bool, service_name: str = "",
+                             timeout_in_sec: int = 5, auth_type: Optional[str] = None, username: Optional[str] = None,
+                             password: Optional[str] = None, token: Optional[str] = None, additional_allowed_statuses: List[int] = [],
+                             display_only_if_critical: bool=False) -> Tuple[bool, str]:
         try:
             display_name = f"[{display_name}]({url})"
 
@@ -834,9 +837,11 @@ class LinuxMonitor:
                         # Get the reason phrase (e.g., "Unauthorized" for 401)
                         status_reason: str = responses.get(response.status, "Unknown status")
                         out_msg = f"❌ **{display_name} answered with invalid status code {response.status} - {status_reason}**."
+                        if show_content_if_issue:
+                            content: str = (await response.text()).replace('`', '"').strip()
+                            out_msg += f"\n```sh\n{content}\n```"
                         logging.warning(msg=out_msg)
                         return False, out_msg
-
         except asyncio.TimeoutError:
             out_msg = f"⚠️ **Error checking {display_name}: Timeout**"
             return False, out_msg
@@ -844,7 +849,7 @@ class LinuxMonitor:
             out_msg = f"⚠️ **Error checking {display_name}**:\n```sh\n{e}\n```"
             return False, out_msg
 
-    async def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
+    async def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False, restart_if_down: bool=False) -> str:
         try:
             out_msg: str = ""
             for website_config in self.config['websites']:
@@ -852,21 +857,30 @@ class LinuxMonitor:
                     timeout_in_sec: int = website_config.get('timeout_in_sec', 5)
                     url: str = website_config['url']
                     display_name: str = website_config.get('display_name', url)
+                    show_content_if_issue: bool = website_config.get('show_content_if_issue', False)
+                    service_name_to_restart: str = website_config.get('service_name_to_restart', "")
                     auth_type: Optional[str] = website_config.get('auth_type', None)
                     username: Optional[str] = website_config.get('username', None)
                     password: Optional[str] = website_config.get('password', None)
                     token: Optional[str] = website_config.get('token', None)
                     additional_allowed_statuses: List[int] = website_config.get('additional_allowed_statuses', [])
 
-                    _, msg = await self._check_website(url=url, display_name=display_name, timeout_in_sec=timeout_in_sec,
-                                                                  auth_type=auth_type, username=username, password=password, token=token,
-                                                                  additional_allowed_statuses=additional_allowed_statuses,
-                                                                  display_only_if_critical=display_only_if_critical)
-
+                    res, msg = await self._check_website(url=url, display_name=display_name, timeout_in_sec=timeout_in_sec,
+                                                       show_content_if_issue=show_content_if_issue,
+                                                       auth_type=auth_type, username=username, password=password, token=token,
+                                                       additional_allowed_statuses=additional_allowed_statuses,
+                                                       display_only_if_critical=display_only_if_critical)
                     if msg != "":
                         if out_msg:
                             out_msg += "\n"
                         out_msg += f"- {msg}"
+
+                    if not res and restart_if_down and service_name_to_restart != "":
+                        if out_msg:
+                            out_msg += "\n"
+                        restart_msg = await self.restart_service(is_private=is_private, service_name=service_name_to_restart)
+                        if restart_msg:
+                            out_msg += f"\n - {restart_msg}"
 
             if out_msg != "":
                 out_msg = f"# 🌐 Website access state 🌐\n{out_msg}"
@@ -1898,7 +1912,7 @@ class LinuxMonitor:
                     logging.info(msg="- ✅ Ping of all websites are OK.")
 
                 # Websites availability (GET request)
-                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=True)
+                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=True, restart_if_down=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_websites_error_displayed is None or ((datetime.now() - datetime_last_websites_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2135,7 +2149,7 @@ class LinuxMonitor:
                     out_msg += msg
 
                 # Websites availability (GET request)
-                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=False)
+                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=False, restart_if_down=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"

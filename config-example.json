@@ -41,7 +41,9 @@
         {
             "url": "https://google.com",
             "display_name": "Google",
-            "timeout_in_sec": 5
+            "timeout_in_sec": 5,
+            "show_content_if_issue": true,
+            "service_name_to_restart": "web"
         },
         {
             "url": "https://mock.codes/404",

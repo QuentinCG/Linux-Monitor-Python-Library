@@ -56,7 +56,7 @@ echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/mariadb" >> /etc/sudoers.d/U
 
 ## How to use in shell
 
-```shell
+```sh
 # Get help
 python3 -m linuxmonitor --help
 # Use "--debug" to show more information during command

@@ -105,7 +105,7 @@ def main() -> None:
     if args.websites:
         handled = True
         print("Checking websites availability...")
-        out_msg: str = asyncio.run(monitoring.check_all_websites(is_private=True, display_only_if_critical=False))
+        out_msg: str = asyncio.run(monitoring.check_all_websites(is_private=True, display_only_if_critical=False, restart_if_down=False))
         print(out_msg)
 
     if args.certificates:
