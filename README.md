@@ -26,6 +26,7 @@ List of 'check' functionalities:
   - Check certificates expiration and validity
   - Check last user connections IPs
   - Check uptime (to inform if the server has been rebooted)
+  - Check custom commands
 
 Additionnal functionalities:
   - Get hostname, OS details, kernel version, server datetime, uptime
@@ -34,6 +35,7 @@ Additionnal functionalities:
   - Kill a process by PID
   - Reboot server
   - Restart/stop a service
+  - Execute custom commands
 
 ## How to install (python script and shell)
 
@@ -122,6 +124,15 @@ python3 -m linuxmonitor --kill_process PID_HERE --config_file config-example.jso
 
 # Restart the entire server
 python3 -m linuxmonitor --reboot_server --config_file config-example.json --nodebug
+
+# List all custom commands
+python3 -m linuxmonitor --list_commands --config_file config-example.json --nodebug
+
+# Execute a custom commands
+python3 -m linuxmonitor --execute_command CUSTOM_COMMAND_HERE --config_file config-example.json --nodebug
+
+# Execute all custom commands
+python3 -m linuxmonitor --execute_all_commands --config_file config-example.json --nodebug
 ```
 
 ## How to use in python script

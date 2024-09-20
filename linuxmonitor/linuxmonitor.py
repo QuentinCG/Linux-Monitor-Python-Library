@@ -182,7 +182,47 @@ class LinuxMonitor:
 
     #region Execute Command
 
-    async def execute_and_verify(self, command: str, display_name: str, show_only_std_and_exception: bool, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[Optional[bool], str]:
+    def _json_to_md(self, json_string: str, level: int = 0) -> str:
+        """
+        Convert a JSON string into a Markdown representation.
+
+        Parameters:
+            json_string (str): The input JSON string.
+            level (int): The current indentation level (default is 0).
+
+        Returns:
+            str: The resulting Markdown formatted string.
+        """
+        md: str = ""
+        indent: str = "  " * level  # type: ignore # Indentation for markdown headings
+
+        # Parse the JSON string to a Python object
+        try:
+            data = json.loads(json_string)
+        except json.JSONDecodeError as e:
+            return f"Error parsing JSON: {str(e)}"
+
+        # Helper function to convert the parsed JSON to markdown
+        def process_data(data, level: int) -> None: # type: ignore
+            nonlocal md  # Declare md as nonlocal so it can be modified
+            indent = "  " * level
+
+            if isinstance(data, dict):
+                for key, value in data.items(): # type: ignore
+                    md += f"{indent}- {key}\n"
+                    process_data(value, level + 1) # type: ignore
+            elif isinstance(data, list):
+                for index, item in enumerate(data): # type: ignore
+                    md += f"{indent}- Item {index + 1}\n"
+                    process_data(item, level + 1) # type: ignore
+            else:
+                md += f"{indent}  - {data}\n"
+
+        process_data(data, level)
+
+        return md
+
+    async def execute_and_verify(self, command: str, display_name: str, show_only_std_and_exception: bool, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None, is_stdout_json: bool=False) -> Tuple[Optional[bool], str]:
         """
         Execute a shell command asynchronously and verify its correct execution.
 
@@ -241,7 +281,10 @@ class LinuxMonitor:
                 out_msg += f"\n  - Error log:\n```sh\n{stderr_str}\n```"
 
             if stdout_str != "":
-                out_msg += f"\n  - Info:\n```sh\n{stdout_str}\n```"
+                msg_stout: str = stdout_str
+                if is_stdout_json:
+                    msg_stout = self._json_to_md(stdout_str)
+                out_msg += f"\n  - Info:\n```sh\n{msg_stout}\n```"
         elif res == None:
             # Command timed out
             if not show_only_std_and_exception:
@@ -1813,6 +1856,126 @@ class LinuxMonitor:
 
     #endregion
 
+    #region Commands
+
+    async def _execute_command(self, command: str, display_name: str, show_content_if_success: bool, show_content_if_issue: bool, is_content_json: bool, timeout_in_sec: int, display_only_if_critical: bool) -> str:
+        try:
+            out_msg: str = ""
+
+            # Execute the command
+            start_time: float = time.time()
+            res, res_msg = await self.execute_and_verify(command=command, display_name=display_name, show_only_std_and_exception=True, timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical, is_stdout_json=is_content_json)
+            end_time: float = time.time()
+
+            if res == True:
+                readable_duration: str = "{:.2f}".format(end_time - start_time)
+                out_msg = f"✅ **{display_name} executed with success** in {readable_duration}sec."
+                logging.info(msg=out_msg)
+
+                if show_content_if_success:
+                    out_msg += f"\n{res_msg}"
+
+            elif res == False:
+                out_msg = f"⚠️ **{display_name} failed to execute**."
+                logging.warning(msg=out_msg)
+
+                if show_content_if_issue:
+                    out_msg += f"\n{res_msg}"
+
+            else:
+                out_msg = f"⚠️ **{display_name} expired**."
+                logging.warning(msg=out_msg)
+
+            return out_msg
+        except Exception as e:
+            out_msg = f"⚠️ **Error while executing {display_name}**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+            return out_msg
+
+    async def execute_command(self, is_private: bool, command_name: str) -> str:
+        try:
+            out_msg: str = ""
+            display_name: str = command_name
+            for command_config in self.config['commands']:
+                if command_config['command'] == command_name:
+                    display_name = command_config['display_name']
+                    command: str = command_config['command']
+                    is_private_cmd: bool = command_config['is_private']
+
+                    if is_private or is_private == is_private_cmd:
+                        show_content_if_success: bool = command_config.get('show_content_if_success', False)
+                        show_content_if_issue: bool = command_config.get('show_content_if_issue', False)
+                        is_content_json: bool = command_config.get('is_content_json', False)
+                        timeout_in_sec: int = command_config.get('timeout_in_sec', 10)
+
+                        res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success, show_content_if_issue=show_content_if_issue, is_content_json=is_content_json, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+                        if res != "":
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += f"{res}"
+                    else:
+                        out_msg = f"⚠️ **Command {display_name} is not allowed**"
+                        logging.warning(msg=out_msg)
+
+                    if out_msg != "":
+                        out_msg = f"# 📜 Command {display_name} 📜\n{out_msg}"
+
+                    return out_msg
+
+            out_msg = f"⚠️ **Command {display_name} not found**"
+            logging.warning(msg=out_msg)
+            return out_msg
+        except Exception as e:
+            return f"⚠️ **Error executing command {command_name}**:\n```sh\n{e}\n```"
+
+    async def execute_all_commands(self, is_private: bool, is_scheduled_tasks_for_issues: bool=False, is_scheduled_tasks_for_infos: bool=False, display_only_if_critical: bool=False) -> str:
+        try:
+            out_msg: str = ""
+
+            for command_config in self.config['commands']:
+                if is_private or is_private == command_config['is_private']:
+                    display_name: str = command_config['display_name']
+                    command: str = command_config['command']
+                    show_content_if_success: bool = command_config.get('show_content_if_success', False)
+                    show_content_if_issue: bool = command_config.get('show_content_if_issue', False)
+                    is_content_json: bool = command_config.get('is_content_json', False)
+                    timeout_in_sec: int = command_config.get('timeout_in_sec', 10)
+
+                    if is_scheduled_tasks_for_issues and not command_config.get('execute_in_scheduled_tasks_for_issues', False):
+                        continue
+                    if is_scheduled_tasks_for_infos and not command_config.get('execute_in_scheduled_tasks_for_infos', False):
+                        continue
+
+                    res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success, show_content_if_issue=show_content_if_issue, is_content_json=is_content_json, timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
+                    if res != "":
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += f"{res}"
+
+            if out_msg != "":
+                out_msg = f"# 📜 Commands 📜\n{out_msg}"
+
+            return out_msg
+        except Exception as e:
+            return f"⚠️ **Error executing commands**:\n```sh\n{e}\n```"
+
+    async def list_commands(self, is_private: bool) -> str:
+        try:
+            out_msg: str = "# 📜 Commands 📜\n"
+            for command_config in self.config['commands']:
+                if is_private or is_private == command_config['is_private']:
+                    display_name: str = command_config['display_name']
+                    out_msg += f"- {display_name}\n"
+
+            logging.info(msg=out_msg)
+            return out_msg
+        except Exception as e:
+            out_msg = f"⚠️ **Error listing commands**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+            return out_msg
+
+    #endregion
+
     #region Scheduled Tasks
 
     async def schedule_task(self, handle_error_message: Callable[[str], Awaitable[None]], is_private: bool) -> None:
@@ -1843,6 +2006,7 @@ class LinuxMonitor:
         datetime_last_user_logins_error_displayed: Optional[datetime] = None
         datetime_last_port_error_displayed: Optional[datetime] = None
         datetime_last_services_error_displayed: Optional[datetime] = None
+        datetime_last_commands_error_displayed: Optional[datetime] = None
         need_to_check_uptime: bool = True # No need to check uptime every time (since once ok, it can't be wrong)
 
         if not self.start_scheduled_tasks_immediately:
@@ -2000,6 +2164,27 @@ class LinuxMonitor:
                     datetime_last_port_error_displayed = None
                 else:
                     logging.info(msg="- ✅ All ports are OK.")
+
+                # Commands
+                msg = await self.execute_all_commands(is_private=is_private, is_scheduled_tasks_for_issues=True, is_scheduled_tasks_for_infos=False, display_only_if_critical=True)
+                if msg != "":
+                    logging.warning(msg=msg)
+                    if datetime_last_commands_error_displayed is None or ((datetime.now() - datetime_last_commands_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+                        datetime_last_commands_error_displayed = datetime.now()
+                    else:
+                        logging.warning(msg="Commands critical but already notified less than 12 hours ago, not notifying...")
+                elif datetime_last_commands_error_displayed is not None:
+                    msg="✅ **Commands returned to normal state**"
+                    logging.info(msg=msg)
+                    if out_msg != "":
+                        out_msg += "\n"
+                    out_msg += msg
+                    datetime_last_commands_error_displayed = None
+                else:
+                    logging.info(msg="- ✅ All commands are OK.")
 
                 # User logins
                 if is_private:
@@ -2205,6 +2390,13 @@ class LinuxMonitor:
 
                 # Ports
                 msg = await self.check_all_ports(is_private=is_private, display_only_if_critical=False)
+                if msg != "":
+                    if out_msg != "":
+                        out_msg += "\n"
+                    out_msg += msg
+
+                # Commands
+                msg = await self.execute_all_commands(is_private=is_private, is_scheduled_tasks_for_issues=False, is_scheduled_tasks_for_infos=True, display_only_if_critical=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"

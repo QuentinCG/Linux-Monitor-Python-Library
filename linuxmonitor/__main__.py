@@ -28,6 +28,9 @@ def main() -> None:
     parser.add_argument('--ports', action='store_true', help='🔒 Check ports 🔒')
     parser.add_argument('--list_processes', action='store_true', help='📋 List active processes 📋')
     parser.add_argument('--kill_process', type=int, help='🚫 Stop a process by PID 🚫')
+    parser.add_argument('--list_commands', action='store_true', help='📋 List all available commands 📋')
+    parser.add_argument('execute_command', type=str, help='📋 Execute a command 📋')
+    parser.add_argument('execute_all_commands', type=str, help='📋 Execute all commands 📋')
 
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--nodebug', action='store_true', help='Disable all logs')
@@ -148,6 +151,24 @@ def main() -> None:
         handled = True
         print("Listing all available services...")
         out_msg: str = monitoring.get_all_services(is_private=True)
+        print(out_msg)
+
+    if args.list_commands:
+        handled = True
+        print("Listing all available commands...")
+        out_msg: str = asyncio.run(monitoring.list_commands(is_private=True))
+        print(out_msg)
+
+    if args.execute_command is not None:
+        handled = True
+        print(f"Executing command: {args.execute_command}...")
+        out_msg: str = asyncio.run(monitoring.execute_command(is_private=True, command_name=args.execute_command))
+        print(out_msg)
+
+    if args.execute_all_commands is not None:
+        handled = True
+        print(f"Executing all commands...")
+        out_msg: str = asyncio.run(monitoring.execute_all_commands(is_private=True))
         print(out_msg)
 
     if args.ports:
