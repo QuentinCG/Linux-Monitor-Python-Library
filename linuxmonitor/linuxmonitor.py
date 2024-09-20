@@ -1089,7 +1089,7 @@ class LinuxMonitor:
                             out_msg += "\n"
                         out_msg += f"- {service_icon} {self.config['services'][service_name]['display_name']}: **{service_status}**"
                         if status != True and status_msg != "":
-                            out_msg += f"\n{status_msg}"
+                            out_msg += f"\n - {status_msg}"
 
                         if status is False:
                             out_msg += f"\n - " + await self.restart_service(is_private=is_private, service_name=service_name, force_restart=False)
