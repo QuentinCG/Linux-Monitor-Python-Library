@@ -849,7 +849,7 @@ class LinuxMonitor:
             out_msg = f"⚠️ **Error checking {display_name}**:\n```sh\n{e}\n```"
             return False, out_msg
 
-    async def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False, restart_if_down: bool=False) -> str:
+    async def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         try:
             out_msg: str = ""
             for website_config in self.config['websites']:
@@ -875,8 +875,8 @@ class LinuxMonitor:
                             out_msg += "\n"
                         out_msg += f"- {msg}"
 
-                    if not res and restart_if_down and service_name_to_restart != "":
-                        restart_msg = await self.restart_service(is_private=is_private, service_name=service_name_to_restart)
+                    if not res and service_name_to_restart != "":
+                        restart_msg = await self.restart_service(is_private=is_private, service_name=service_name_to_restart, force_restart=False)
                         out_msg += f"\n - {restart_msg}"
 
             if out_msg != "":
@@ -892,7 +892,7 @@ class LinuxMonitor:
 
     #region Services
 
-    def get_all_services_allowed_to_restart(self, is_private: bool) -> str:
+    def get_all_services(self, is_private: bool) -> str:
         """
         Get all services allowed to restart which are configured in the JSON configuration file.
 
@@ -905,12 +905,19 @@ class LinuxMonitor:
             service = self.config['services'][service_name]
             if is_private or service['is_private'] == is_private:
                 is_allowed_to_restart: bool = 'restart_command' in service
+                auto_restart: bool = 'force_restart' in service
 
                 if out_msg != "":
                     out_msg += "\n"
-                out_msg += f"- `{service_name}`: {service['display_name']}"
+                out_msg += f"- `{service_name}`: {service['display_name']}: "
                 if not is_allowed_to_restart:
-                    out_msg += " (❌ Not authorized to restart)"
+                    out_msg += " - ❌ Not authorized to restart (no 'restart_command')"
+                else:
+                    if auto_restart:
+                        out_msg += " - ✅ Can be restarted (automatically & manually)"
+                    else:
+                        out_msg += " - ✅ Can be restarted (manually only because no 'force_restart')"
+
 
         if out_msg != "":
             out_msg = f"# 🔄 Services list 🔄\n{out_msg}"
@@ -920,7 +927,7 @@ class LinuxMonitor:
         logging.info(msg=out_msg)
         return out_msg
 
-    async def restart_service(self, is_private: bool, service_name: str) -> str:
+    async def restart_service(self, is_private: bool, service_name: str, force_restart: bool) -> str:
         """
         Restart a specific service.
 
@@ -944,6 +951,11 @@ class LinuxMonitor:
             display_name: str = service.get('display_name', service_name)
             if 'restart_command' not in service:
                 out_msg = f"❌ **Restart command not found for {display_name}**."
+                logging.error(msg=out_msg)
+                return out_msg
+
+            if not force_restart and not service.get('force_restart', False):
+                out_msg = f"⚠️ **Service {service_name} can be restarted only manually** (change configuration if needed)."
                 logging.error(msg=out_msg)
                 return out_msg
 
@@ -986,7 +998,7 @@ class LinuxMonitor:
             out_msg: str = ""
             for service_name in self.config["services"].keys():
                 if is_private or self.config["services"][service_name]['is_private'] == is_private:
-                    res: str = await self.restart_service(is_private=is_private, service_name=service_name)
+                    res: str = await self.restart_service(is_private=is_private, service_name=service_name, force_restart=True)
                     if res != "":
                         if out_msg:
                             out_msg += "\n"
@@ -1033,7 +1045,7 @@ class LinuxMonitor:
             logging.exception(msg=out_msg)
             return None, out_msg
 
-    async def check_all_services_status(self, is_private: bool) -> str:
+    async def check_all_services_status(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         """
         Check the status of all services configured in the JSON configuration file.
 
@@ -1058,58 +1070,31 @@ class LinuxMonitor:
                 "❌"
             )
 
-            out_msg = "# 📱 Services status 📱\n"
-
             for service_name in self.config["services"].keys():
                 if is_private or self.config["services"][service_name]['is_private'] == is_private:
                     status, status_msg = await self._get_service_status(is_private=is_private, service_name=service_name)
                     service_status: str = status_to_string(res=status)
                     service_icon: str = status_to_icon(res=status)
-                    if out_msg != "":
-                        out_msg += "\n"
-                    out_msg += f"- {service_icon} {self.config['services'][service_name]['display_name']}: **{service_status}**"
-                    if status != True and status_msg != "":
-                        out_msg += f"\n{status_msg}"
+
+                    if status is not True or not display_only_if_critical:
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += f"- {service_icon} {self.config['services'][service_name]['display_name']}: **{service_status}**"
+                        if status != True and status_msg != "":
+                            out_msg += f"\n{status_msg}"
+
+                        if status is False:
+                            out_msg += f"\n - " + await self.restart_service(is_private=is_private, service_name=service_name, force_restart=False)
+
         except Exception as e:
             out_msg = f"**Internal error checking services status**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
 
+
+        if out_msg != "":
+            out_msg = f"# 📱 Services status 📱\n{out_msg}"
+
         return out_msg
-
-    async def check_all_services_status_and_restart_if_down(self, is_private: bool) -> str:
-        """
-        Check the status of all services configured in the JSON configuration file and restart them if they are inactive.
-
-        :param is_private: User permission to check private or public services (True for private, False for public).
-
-        :return: A string containing the result message.
-        """
-        out_msg_full: str = ""
-        try:
-            for service_name in self.config["services"].keys():
-                out_msg: str = ""
-                if is_private or self.config["services"][service_name]['is_private'] == is_private:
-                    status, status_msg = await self._get_service_status(is_private=is_private, service_name=service_name)
-                    if status is False:
-                        out_msg = f"- ❌ **{self.config['services'][service_name]['display_name']} inactive**. Restarting the service is necessary."
-                        logging.warning(msg=out_msg)
-                        if status_msg != "":
-                            out_msg += f"\n{status_msg}"
-
-                        out_msg_full += out_msg + "\n"
-                        out_msg_full += " - " + await self.restart_service(is_private=is_private, service_name=service_name) + "\n"
-                    elif status is None:
-                        out_msg: str = f"- ⚠️ **Error checking status of {self.config['services'][service_name]['display_name']}** (not restarting it)."
-                        logging.error(msg=out_msg)
-                        out_msg_full += out_msg + "\n"
-        except Exception as e:
-            out_msg_full = f"- **Internal error during service status check.**:\n```sh\n{e}\n```"
-            logging.exception(msg=out_msg_full)
-
-        if out_msg_full != "":
-            out_msg_full = f"# 📱 Services status 📱\n{out_msg_full}"
-
-        return out_msg_full
 
     #endregion
 
@@ -1514,13 +1499,12 @@ class LinuxMonitor:
 
         return res, out_msg
 
-    async def check_all_ports(self, is_private: bool, display_only_if_critical: bool=False, restart_if_down: bool=False) -> str:
+    async def check_all_ports(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         """
         Check all ports configured in the JSON configuration file (and restart the service if the port is down and service_name_to_restart added in config file).
 
         :param is_private: User permission to check private or public ports (True for private, False for public).
         :param display_only_if_critical: If True, the string result will only be returned if there is an error during execution.
-        :param restart_if_down: If True, restart the service if the port is down.
 
         :return: A string containing the result message.
         """
@@ -1535,7 +1519,7 @@ class LinuxMonitor:
                     want_port_to_be_open: bool = port_config.get('want_port_to_be_open', True)
 
                     service_name_to_restart: str = ""
-                    if want_port_to_be_open and restart_if_down:
+                    if want_port_to_be_open:
                         service_name_to_restart = port_config.get('service_name_to_restart', "")
 
                     result, result_msg = self._is_port_in_required_state(port=port, host=host, timeout_in_sec=timeout_in_sec, want_port_to_be_open=want_port_to_be_open, display_name=display_name)
@@ -1544,11 +1528,11 @@ class LinuxMonitor:
                             out_msg += "\n"
                         out_msg += f"- {result_msg}"
 
-                    if (not result) and restart_if_down and service_name_to_restart != "":
+                    if (not result) and service_name_to_restart != "":
                         if out_msg != "":
                             out_msg += "\n"
 
-                        restart_res: str = await self.restart_service(is_private=is_private, service_name=service_name_to_restart)
+                        restart_res: str = await self.restart_service(is_private=is_private, service_name=service_name_to_restart, force_restart=False)
                         out_msg += f" - {restart_res}"
 
             if out_msg != "":
@@ -1804,7 +1788,7 @@ class LinuxMonitor:
             logging.info(msg="Checking services status and all disk usage, CPU, RAM, Swap, CPU temperature and ping of websites periodically...")
             try:
                 # Services status
-                msg: str = await self.check_all_services_status_and_restart_if_down(is_private=is_private)
+                msg: str = await self.check_all_services_status(is_private=is_private, display_only_if_critical=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_services_error_displayed is None or ((datetime.now() - datetime_last_services_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -1909,7 +1893,7 @@ class LinuxMonitor:
                     logging.info(msg="- ✅ Ping of all websites are OK.")
 
                 # Websites availability (GET request)
-                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=True, restart_if_down=True)
+                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_websites_error_displayed is None or ((datetime.now() - datetime_last_websites_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -1930,7 +1914,7 @@ class LinuxMonitor:
                     logging.info(msg="- ✅ All websites availability (GET requests) are OK.")
 
                 # Ports
-                msg = await self.check_all_ports(is_private=is_private, display_only_if_critical=True, restart_if_down=True)
+                msg = await self.check_all_ports(is_private=is_private, display_only_if_critical=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_port_error_displayed is None or ((datetime.now() - datetime_last_port_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2111,7 +2095,7 @@ class LinuxMonitor:
                 logging.info(msg="-----------------------------------------------")
 
                 # Services status
-                msg: str = await self.check_all_services_status_and_restart_if_down(is_private=is_private)
+                msg: str = await self.check_all_services_status(is_private=is_private, display_only_if_critical=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"
@@ -2146,14 +2130,14 @@ class LinuxMonitor:
                     out_msg += msg
 
                 # Websites availability (GET request)
-                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=False, restart_if_down=False)
+                msg = await self.check_all_websites(is_private=is_private, display_only_if_critical=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"
                     out_msg += msg
 
                 # Ports
-                msg = await self.check_all_ports(is_private=is_private, display_only_if_critical=False, restart_if_down=False)
+                msg = await self.check_all_ports(is_private=is_private, display_only_if_critical=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"

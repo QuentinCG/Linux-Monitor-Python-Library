@@ -105,7 +105,7 @@ def main() -> None:
     if args.websites:
         handled = True
         print("Checking websites availability...")
-        out_msg: str = asyncio.run(monitoring.check_all_websites(is_private=True, display_only_if_critical=False, restart_if_down=False))
+        out_msg: str = asyncio.run(monitoring.check_all_websites(is_private=True, display_only_if_critical=False))
         print(out_msg)
 
     if args.certificates:
@@ -123,7 +123,7 @@ def main() -> None:
     if args.services_status:
         handled = True
         print("Checking if services are running and restart if down...")
-        out_msg: str = asyncio.run(monitoring.check_all_services_status_and_restart_if_down(is_private=True))
+        out_msg: str = asyncio.run(monitoring.check_all_services_status(is_private=True, display_only_if_critical=False))
         print(out_msg)
 
     if args.restart_all:
@@ -134,19 +134,19 @@ def main() -> None:
     if args.restart_service is not None:
         handled = True
         print(f"Restarting service: {args.restart_service}...")
-        out_msg: str = asyncio.run(monitoring.restart_service(is_private=True, service_name=args.restart_service))
+        out_msg: str = asyncio.run(monitoring.restart_service(is_private=True, service_name=args.restart_service, force_restart=True))
         print(out_msg)
 
     if args.list_services:
         handled = True
         print("Listing all available services...")
-        out_msg: str = monitoring.get_all_services_allowed_to_restart(is_private=True)
+        out_msg: str = monitoring.get_all_services(is_private=True)
         print(out_msg)
 
     if args.ports:
         handled = True
         print("Checking ports...")
-        out_msg: str = asyncio.run(monitoring.check_all_ports(is_private=True, display_only_if_critical=False, restart_if_down=False))
+        out_msg: str = asyncio.run(monitoring.check_all_ports(is_private=True, display_only_if_critical=False))
         print(out_msg)
 
     if args.list_processes:
