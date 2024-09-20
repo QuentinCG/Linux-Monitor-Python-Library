@@ -1897,7 +1897,7 @@ class LinuxMonitor:
             out_msg: str = ""
             display_name: str = command_name
             for command_config_key in self.config['commands'].keys():
-                if self.config['commands'][command_config_key]['command'] == command_name:
+                if command_config_key == command_name:
                     display_name = self.config['commands'][command_config_key]['display_name']
                     command: str = self.config['commands'][command_config_key]['command']
                     is_private_cmd: bool = self.config['commands'][command_config_key]['is_private']
@@ -1965,7 +1965,7 @@ class LinuxMonitor:
             for command_config_key in self.config['commands'].keys():
                 if is_private or is_private == self.config['commands'][command_config_key]['is_private']:
                     display_name: str = self.config['commands'][command_config_key]['display_name']
-                    out_msg += f"- {display_name}\n"
+                    out_msg += f"- `{command_config_key}`: {display_name}\n"
 
             logging.info(msg=out_msg)
             return out_msg
