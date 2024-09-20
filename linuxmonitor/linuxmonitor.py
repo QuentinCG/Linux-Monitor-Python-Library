@@ -211,11 +211,11 @@ class LinuxMonitor:
             except asyncio.TimeoutError:
                 logging.warning(msg=f"Timeout expired for {display_name} (command: {command})")
                 process.kill()
-                return None, f"⚠️ **Error {display_name}**:\n- Failed to execute the command in less than {timeout_in_sec} seconds)"
+                return None, f"  - ⚠️ **Error {display_name}**:\n    - Failed to execute the command in less than {timeout_in_sec} seconds)"
         except Exception as e:
             # Failed to execute the command
             if not show_only_std_and_exception:
-                out_msg = f"⚠️ **Error {display_name}**:\n```sh\n{e}\n```"
+                out_msg = f"  - ⚠️ **Error {display_name}**:\n```sh\n{e}\n```"
             else:
                 out_msg = f"```sh\n{e}\n```"
             logging.exception(msg=out_msg)
@@ -234,7 +234,7 @@ class LinuxMonitor:
         if res == False:
             # Command returned an error code
             if not show_only_std_and_exception:
-                out_msg = f"❌ **Error {display_name}**\n"
+                out_msg = f"  - ❌ **Error {display_name}**\n"
             out_msg += f"  - Error code: `{returncode}`"
 
             if stderr_str != "":
@@ -245,13 +245,13 @@ class LinuxMonitor:
         elif res == None:
             # Command timed out
             if not show_only_std_and_exception:
-                out_msg = f"⚠️ **Error {display_name}**\n"
-            out_msg += f"- Failed to wait for the command to finish (due to timeout of {timeout_in_sec} seconds)"
+                out_msg = f"  - ⚠️ **Error {display_name}**\n"
+            out_msg += f"  - Failed to wait for the command to finish (due to timeout of {timeout_in_sec} seconds)"
         else:
             # Command executed successfully
             if not display_only_if_critical:
                 if not show_only_std_and_exception:
-                    out_msg = f"✅ **{display_name} executed successfully**"
+                    out_msg = f"  - ✅ **{display_name} executed successfully**"
 
         if res == True:
             logging.info(msg=f"Command {display_name} (command {command}) executed successfully")
@@ -274,6 +274,10 @@ class LinuxMonitor:
         """
         logging.info(msg="Rebooting the server...")
         _, out_msg = await self.execute_and_verify(command="sudo /sbin/reboot", display_name="Server reboot", show_only_std_and_exception=False, timeout_in_sec=None, display_only_if_critical=False)
+
+        if out_msg != "":
+            out_msg = f"# 🔄 Reboot 🔄\n{out_msg}"
+
         return out_msg
 
     #endregion
