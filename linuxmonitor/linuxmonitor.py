@@ -1896,17 +1896,17 @@ class LinuxMonitor:
         try:
             out_msg: str = ""
             display_name: str = command_name
-            for command_config in self.config['commands']:
-                if command_config['command'] == command_name:
-                    display_name = command_config['display_name']
-                    command: str = command_config['command']
-                    is_private_cmd: bool = command_config['is_private']
+            for command_config_key in self.config['commands'].keys():
+                if self.config['commands'][command_config_key]['command'] == command_name:
+                    display_name = self.config['commands'][command_config_key]['display_name']
+                    command: str = self.config['commands'][command_config_key]['command']
+                    is_private_cmd: bool = self.config['commands'][command_config_key]['is_private']
 
                     if is_private or is_private == is_private_cmd:
-                        show_content_if_success: bool = command_config.get('show_content_if_success', False)
-                        show_content_if_issue: bool = command_config.get('show_content_if_issue', False)
-                        is_content_json: bool = command_config.get('is_content_json', False)
-                        timeout_in_sec: int = command_config.get('timeout_in_sec', 10)
+                        show_content_if_success: bool = self.config['commands'][command_config_key].get('show_content_if_success', False)
+                        show_content_if_issue: bool = self.config['commands'][command_config_key].get('show_content_if_issue', False)
+                        is_content_json: bool = self.config['commands'][command_config_key].get('is_content_json', False)
+                        timeout_in_sec: int = self.config['commands'][command_config_key].get('timeout_in_sec', 10)
 
                         res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success, show_content_if_issue=show_content_if_issue, is_content_json=is_content_json, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
                         if res != "":
@@ -1932,18 +1932,18 @@ class LinuxMonitor:
         try:
             out_msg: str = ""
 
-            for command_config in self.config['commands']:
-                if is_private or is_private == command_config['is_private']:
-                    display_name: str = command_config['display_name']
-                    command: str = command_config['command']
-                    show_content_if_success: bool = command_config.get('show_content_if_success', False)
-                    show_content_if_issue: bool = command_config.get('show_content_if_issue', False)
-                    is_content_json: bool = command_config.get('is_content_json', False)
-                    timeout_in_sec: int = command_config.get('timeout_in_sec', 10)
+            for command_config_key in self.config['commands'].keys():
+                if is_private or is_private == self.config['commands'][command_config_key]['is_private']:
+                    display_name: str = self.config['commands'][command_config_key]['display_name']
+                    command: str = self.config['commands'][command_config_key]['command']
+                    show_content_if_success: bool = self.config['commands'][command_config_key].get('show_content_if_success', False)
+                    show_content_if_issue: bool = self.config['commands'][command_config_key].get('show_content_if_issue', False)
+                    is_content_json: bool = self.config['commands'][command_config_key].get('is_content_json', False)
+                    timeout_in_sec: int = self.config['commands'][command_config_key].get('timeout_in_sec', 10)
 
-                    if is_scheduled_tasks_for_issues and not command_config.get('execute_in_scheduled_tasks_for_issues', False):
+                    if is_scheduled_tasks_for_issues and not self.config['commands'][command_config_key].get('execute_in_scheduled_tasks_for_issues', False):
                         continue
-                    if is_scheduled_tasks_for_infos and not command_config.get('execute_in_scheduled_tasks_for_infos', False):
+                    if is_scheduled_tasks_for_infos and not self.config['commands'][command_config_key].get('execute_in_scheduled_tasks_for_infos', False):
                         continue
 
                     res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success, show_content_if_issue=show_content_if_issue, is_content_json=is_content_json, timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
@@ -1962,9 +1962,9 @@ class LinuxMonitor:
     async def list_commands(self, is_private: bool) -> str:
         try:
             out_msg: str = "# 📜 Commands 📜\n"
-            for command_config in self.config['commands']:
-                if is_private or is_private == command_config['is_private']:
-                    display_name: str = command_config['display_name']
+            for command_config_key in self.config['commands'].keys():
+                if is_private or is_private == self.config['commands'][command_config_key]['is_private']:
+                    display_name: str = self.config['commands'][command_config_key]['display_name']
                     out_msg += f"- {display_name}\n"
 
             logging.info(msg=out_msg)
