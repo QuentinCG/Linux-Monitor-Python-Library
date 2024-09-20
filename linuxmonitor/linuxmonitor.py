@@ -235,7 +235,7 @@ class LinuxMonitor:
             # Command returned an error code
             if not show_only_std_and_exception:
                 out_msg = f"❌ **Error {display_name}**\n"
-            out_msg += f" - Error code: `{returncode}`"
+            out_msg += f"  - Error code: `{returncode}`"
 
             if stderr_str != "":
                 out_msg += f"\n - Error log:\n```sh\n{stderr_str}\n```"
@@ -302,9 +302,9 @@ class LinuxMonitor:
             percent_used: float = (used / total) * 100
             if critical_disk_percent != -1 and percent_used > critical_disk_percent:
                 out_msg = f"- 🚨 Critical disk {display_name} (`{disk_path}`) space:\n" \
-                        f" - Total: {total_gb:.2f}GB\n" \
-                        f" - Used: {used_gb:.2f}GB ({percent_used:.2f}%)\n" \
-                        f" - Free: {free_gb:.2f}GB\n" \
+                        f"  - Total: {total_gb:.2f}GB\n" \
+                        f"  - Used: {used_gb:.2f}GB ({percent_used:.2f}%)\n" \
+                        f"  - Free: {free_gb:.2f}GB\n" \
                         f"⚠️ **Free up disk space** ⚠️"
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
@@ -409,8 +409,8 @@ class LinuxMonitor:
 
             if critical_usage_giga > 0 and total_used_bytes >= critical_usage_giga * (2**30):
                 out_msg = f"- 🚨 Critical folder {display_name} space (`{folder_path}`):\n" \
-                        f" - Total allowed: {critical_usage_giga:.2f}GB\n" \
-                        f" - Used: {total_used_giga:.2f}GB ({percent_used:.2f}%)\n" \
+                        f"  - Total allowed: {critical_usage_giga:.2f}GB\n" \
+                        f"  - Used: {total_used_giga:.2f}GB ({percent_used:.2f}%)\n" \
                         f"⚠️ **Please free up space in this folder** ⚠️"
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
@@ -915,17 +915,17 @@ class LinuxMonitor:
                     out_msg += "\n"
                 out_msg += f"- `{service_name}`: {service['display_name']}:\n"
                 if not is_allowed_to_restart:
-                    out_msg += " - ❌ Not authorized to restart (no 'restart_command')\n"
+                    out_msg += "  - ❌ Not authorized to restart (no 'restart_command')\n"
                 else:
                     if auto_restart:
-                        out_msg += " - ✅ Can be restarted (automatically & manually)\n"
+                        out_msg += "  - ✅ Can be restarted (automatically & manually)\n"
                     else:
-                        out_msg += " - ✅ Can be restarted (manually only because 'auto_restart' = false)\n"
+                        out_msg += "  - ✅ Can be restarted (manually only because 'auto_restart' = false)\n"
 
                 if is_allowed_to_stop:
-                    out_msg += " - ✅ Can be stopped manually"
+                    out_msg += "  - ✅ Can be stopped manually"
                 else:
-                    out_msg += " - ❌ Not authorized to stop manually (no 'stop_command')"
+                    out_msg += "  - ❌ Not authorized to stop manually (no 'stop_command')"
 
         if out_msg != "":
             out_msg = f"# 🔄 Services list 🔄\n{out_msg}"
@@ -1236,14 +1236,14 @@ class LinuxMonitor:
 
             if not cert_infos["is_valid"]:
                 out_msg = f"- ❌ **Invalid SSL certificate [{display_name}](https://{hostname})**\n" \
-                        f" - **Certificate expired on {expiry_date.strftime('%d/%m/%Y')}**\n" \
-                        f" - **Renew the SSL certificate immediately**"
+                        f"  - **Certificate expired on {expiry_date.strftime('%d/%m/%Y')}**\n" \
+                        f"  - **Renew the SSL certificate immediately**"
                 logging.warning(msg=out_msg)
             elif critical_remaining_days > 0 and remaining_days < critical_remaining_days:
                 out_msg = f"- ⚠️ **SSL certificate [{display_name}](https://{hostname}) will expire soon**:\n" \
-                        f" - Certificate expires on {expiry_date.strftime('%d/%m/%Y')}\n" \
-                        f" - **{remaining_days} remaining days (which is in less than {critical_remaining_days} days)**\n" \
-                        f" - **Renew the SSL certificate quickly**"
+                        f"  - Certificate expires on {expiry_date.strftime('%d/%m/%Y')}\n" \
+                        f"  - **{remaining_days} remaining days (which is in less than {critical_remaining_days} days)**\n" \
+                        f"  - **Renew the SSL certificate quickly**"
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if warning_remaining_days > 0 and remaining_days < warning_remaining_days:
@@ -1596,7 +1596,7 @@ class LinuxMonitor:
                             out_msg += "\n"
 
                         restart_res: str = await self.restart_service(is_private=is_private, service_name=service_name_to_restart, force_restart=False)
-                        out_msg += f" - {restart_res}"
+                        out_msg += f"  - {restart_res}"
 
             if out_msg != "":
                 out_msg = f"# 🛡️ Ports 🛡️\n{out_msg}"
