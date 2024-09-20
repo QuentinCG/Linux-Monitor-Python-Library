@@ -295,6 +295,15 @@ class LinuxMonitor:
             if not display_only_if_critical:
                 if not show_only_std_and_exception:
                     out_msg = f"  - ✅ **{display_name} executed successfully**"
+                else:
+                    if stdout_str != "":
+                        msg_stout: str = stdout_str
+                        if is_stdout_json:
+                            msg_stout = self._json_to_md(stdout_str)
+                        if msg_stout != "":
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += f"```sh\n{msg_stout}\n```"
 
         if res == True:
             logging.info(msg=f"Command {display_name} (command {command}) executed successfully")
@@ -1873,14 +1882,16 @@ class LinuxMonitor:
                 logging.info(msg=out_msg)
 
                 if show_content_if_success:
-                    out_msg += f"\n{res_msg}"
+                    if res_msg != "":
+                        out_msg += f"\n{res_msg}"
 
             elif res == False:
                 out_msg = f"⚠️ **{display_name} failed to execute**."
                 logging.warning(msg=out_msg)
 
                 if show_content_if_issue:
-                    out_msg += f"\n{res_msg}"
+                    if res_msg != "":
+                        out_msg += f"\n{res_msg}"
 
             else:
                 out_msg = f"⚠️ **{display_name} expired**."
