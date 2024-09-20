@@ -33,6 +33,7 @@ Additionnal functionalities:
   - Get processes list (PID and name)
   - Kill a process by PID
   - Reboot server
+  - Restart/stop a service
 
 ## How to install (python script and shell)
 
@@ -106,6 +107,9 @@ python3 -m linuxmonitor --restart_all --config_file config-example.json --nodebu
 
 # Restart a service
 python3 -m linuxmonitor --restart_service SERVICE_NAME_HERE --config_file config-example.json --nodebug
+
+# Stop a service
+python3 -m linuxmonitor --stop_service SERVICE_NAME_HERE --config_file config-example.json --nodebug
 
 # Check ports
 python3 -m linuxmonitor --ports --config_file config-example.json --nodebug

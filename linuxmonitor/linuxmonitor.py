@@ -16,6 +16,9 @@ Non exhaustive list of features (available by using it in shell or in python scr
     - Check last user connections IPs
     - Check uptime (to inform if the server has been rebooted)
 
+    - Restart/stop a service
+    - List all services
+
     - Get hostname, OS details, kernel version, server datetime, uptime
     - Get connected users
 
@@ -270,7 +273,7 @@ class LinuxMonitor:
         IMPORTANT: To be usable, the user must have the right to execute `sudo /sbin/reboot` command without password.
         """
         logging.info(msg="Rebooting the server...")
-        _, out_msg = await self.execute_and_verify(command=["sudo", "/sbin/reboot"], display_name="Server reboot", show_only_std_and_exception=False, timeout_in_sec=None, display_only_if_critical=False)
+        _, out_msg = await self.execute_and_verify(command="sudo /sbin/reboot", display_name="Server reboot", show_only_std_and_exception=False, timeout_in_sec=None, display_only_if_critical=False)
         return out_msg
 
     #endregion
@@ -749,7 +752,7 @@ class LinuxMonitor:
         :return: A string containing the result message.
         """
         try:
-            ping_command: list[str] = ["ping", "-c", "1", website]
+            ping_command: str = f"ping -c 1 {website}"
             display_name = f"[{display_name}](https://{website})"
 
             start_time: float = time.time()
@@ -905,6 +908,7 @@ class LinuxMonitor:
             service = self.config['services'][service_name]
             if is_private or service['is_private'] == is_private:
                 is_allowed_to_restart: bool = 'restart_command' in service
+                is_allowed_to_stop: bool = 'stop_command' in service
                 auto_restart: bool = service.get('force_restart', False)
 
                 if out_msg != "":
@@ -918,6 +922,10 @@ class LinuxMonitor:
                     else:
                         out_msg += " - ✅ Can be restarted (manually only because 'force_restart' = false)\n"
 
+                if is_allowed_to_stop:
+                    out_msg += " - ✅ Can be stopped manually"
+                else:
+                    out_msg += " - ❌ Not authorized to stop manually (no 'stop_command')"
 
         if out_msg != "":
             out_msg = f"# 🔄 Services list 🔄\n{out_msg}"
@@ -961,7 +969,7 @@ class LinuxMonitor:
 
             timeout_in_sec: int = service.get('timeout_in_sec', 90)
 
-            service_call: List[str] = service['restart_command']
+            service_call: str = service['restart_command']
             out_msg: str = ""
 
             logging.info(f"Trying to restart {display_name} (command: {service_call}) in less than {timeout_in_sec}sec...")
@@ -1035,7 +1043,7 @@ class LinuxMonitor:
                 logging.error(msg=f"Status command (status_command) not found for service {service_name}")
                 return None, ""
 
-            status_command = service['status_command']
+            status_command: str = service['status_command']
             check_also_stdout_not_containing = service.get('check_also_stdout_not_containing', None)
 
             res, out_msg = await self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", show_only_std_and_exception=True, timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
@@ -1093,6 +1101,60 @@ class LinuxMonitor:
 
         if out_msg != "":
             out_msg = f"# 📱 Services status 📱\n{out_msg}"
+
+        return out_msg
+
+    async def stop_service(self, is_private: bool, service_name: str) -> str:
+        """
+        Stop a specific service.
+
+        :param is_private: User permission to stop private or public services (True for private, False for public).
+        :param service_name: The name of the service name to stop (as configured in the JSON configuration file).
+
+        :return: A string containing the result message.
+        """
+        out_msg: str = ""
+        try:
+            if service_name not in self.config['services'].keys():
+                out_msg = f"❌ **Service {service_name} not found**."
+                logging.error(msg=out_msg)
+                return out_msg
+
+            service = self.config['services'][service_name]
+            if not is_private and is_private != service['is_private']:
+                out_msg = f"❌ **Service {service_name} not authorized to stop in public**."
+                logging.error(msg=out_msg)
+                return out_msg
+
+            display_name: str = service.get('display_name', service_name)
+            if 'stop_command' not in service:
+                out_msg = f"❌ **Stop command not found for {display_name}**."
+                logging.error(msg=out_msg)
+                return out_msg
+
+            timeout_in_sec: int = service.get('timeout_in_sec', 90)
+
+            service_call: str = service['stop_command']
+            out_msg: str = ""
+
+            logging.info(f"Trying to stop {display_name} (command: {service_call}) in less than {timeout_in_sec}sec...")
+
+            start_time: float = time.time()
+            res, res_msg = await self.execute_and_verify(command=service_call, display_name=f"stop {display_name}", show_only_std_and_exception=True, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+            end_time: float = time.time()
+
+            if res == True:
+                readable_duration: str = "{:.2f}".format(end_time - start_time)
+                out_msg = f"✅ **{display_name} stopped with success** in {readable_duration}sec."
+                logging.info(msg=out_msg)
+            else:
+                out_msg = f"❌ **Error stopping service {display_name}**"
+                if res_msg and res_msg != "":
+                    out_msg += f"\n{res_msg}"
+                logging.warning(msg=out_msg)
+        except Exception as e:
+            out_msg = f"⚠️ **Error stopping service {service_name}**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
 
         return out_msg
 
@@ -1368,7 +1430,8 @@ class LinuxMonitor:
             command: str = f"last --ip --hostlast --time-format iso --since '{past_date}' | grep 'pts/'"
             last_output: str = subprocess.check_output(
                 args=command,
-                shell=True, text=True
+                shell=True,
+                text=True
             ).strip()
         except subprocess.CalledProcessError as e:
             logging.error(msg=f"Error getting recent user logins:\n{e}")
@@ -1653,7 +1716,7 @@ class LinuxMonitor:
                 process_cmdline = process_cmdline[:60] + '...'
 
             # Attempt to terminate the process
-            terminate_command: List[str] = ['sudo', '/bin/kill', '-TERM', str(pid)]
+            terminate_command: str = f"sudo /bin/kill -TERM {pid}"
             result_terminate, _ = await self.execute_and_verify(command=terminate_command, display_name=f"stop process {pid} ({process_name})", show_only_std_and_exception=False, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
 
             if result_terminate == True:
@@ -1665,7 +1728,7 @@ class LinuxMonitor:
                 out_msg = f"⚠️ **Stopping nicely {pid} ({process_name}) expired**.\n"
 
                 # Attempt to kill the process
-                kill_command = ['sudo', '/bin/kill', '-KILL', str(pid)]
+                kill_command: str = f"sudo /bin/kill -KILL {pid}"
                 _, strerror_kill = await self.execute_and_verify(command=kill_command, display_name=f"kill process {pid} ({process_name})", show_only_std_and_exception=True, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
                 out_msg += strerror_kill
 

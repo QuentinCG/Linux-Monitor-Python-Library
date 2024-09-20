@@ -23,6 +23,7 @@ def main() -> None:
     parser.add_argument('--services_status', action='store_true', help='🩺 Check services are running 🩺')
     parser.add_argument('--restart_all', action='store_true', help='🚀 Restart all services 🚀')
     parser.add_argument('--restart_service', type=str, help='🚀 Restart a service 🚀')
+    parser.add_argument('--stop_service', type=str, help='🚫 Stop a service 🚫')
     parser.add_argument('--list_services', action='store_true', help='📋 List all available services 📋')
     parser.add_argument('--ports', action='store_true', help='🔒 Check ports 🔒')
     parser.add_argument('--list_processes', action='store_true', help='📋 List active processes 📋')
@@ -135,6 +136,12 @@ def main() -> None:
         handled = True
         print(f"Restarting service: {args.restart_service}...")
         out_msg: str = asyncio.run(monitoring.restart_service(is_private=True, service_name=args.restart_service, force_restart=True))
+        print(out_msg)
+
+    if args.stop_service is not None:
+        handled = True
+        print(f"Stopping service: {args.stop_service}...")
+        out_msg: str = asyncio.run(monitoring.stop_service(is_private=True, service_name=args.stop_service))
         print(out_msg)
 
     if args.list_services:

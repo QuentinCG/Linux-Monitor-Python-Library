@@ -119,6 +119,7 @@
         "rdp": {
             "display_name": "RDP (xrdp)",
             "restart_command": "sudo systemctl restart xrdp",
+            "stop_command": "sudo systemctl stop xrdp",
             "status_command": "sudo systemctl is-active xrdp",
             "timeout_in_sec": 30,
             "force_restart": false
