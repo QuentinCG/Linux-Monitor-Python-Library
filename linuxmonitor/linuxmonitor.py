@@ -909,7 +909,7 @@ class LinuxMonitor:
             if is_private or service['is_private'] == is_private:
                 is_allowed_to_restart: bool = 'restart_command' in service
                 is_allowed_to_stop: bool = 'stop_command' in service
-                auto_restart: bool = service.get('force_restart', False)
+                auto_restart: bool = service.get('auto_restart', False)
 
                 if out_msg != "":
                     out_msg += "\n"
@@ -920,7 +920,7 @@ class LinuxMonitor:
                     if auto_restart:
                         out_msg += " - ✅ Can be restarted (automatically & manually)\n"
                     else:
-                        out_msg += " - ✅ Can be restarted (manually only because 'force_restart' = false)\n"
+                        out_msg += " - ✅ Can be restarted (manually only because 'auto_restart' = false)\n"
 
                 if is_allowed_to_stop:
                     out_msg += " - ✅ Can be stopped manually"
@@ -962,7 +962,7 @@ class LinuxMonitor:
                 logging.error(msg=out_msg)
                 return out_msg
 
-            if not force_restart and not service.get('force_restart', False):
+            if not force_restart and not service.get('auto_restart', False):
                 out_msg = f"⚠️ **Service {service_name} can be restarted only manually** (change configuration if needed)."
                 logging.error(msg=out_msg)
                 return out_msg
