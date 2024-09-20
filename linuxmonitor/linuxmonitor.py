@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.3.4 (2024/09/19)"
+__version__ = "1.3.5 (2024/09/19)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -967,7 +967,7 @@ class LinuxMonitor:
                 return out_msg
 
             if not force_restart and not service.get('auto_restart', False):
-                out_msg = f"⚠️ **Service {service_name} can be restarted only manually** (change configuration if needed)."
+                out_msg = f"⚠️ **Service {display_name} can be restarted only manually** (change configuration if needed)."
                 logging.error(msg=out_msg)
                 return out_msg
 
