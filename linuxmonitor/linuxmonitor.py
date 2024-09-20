@@ -238,10 +238,10 @@ class LinuxMonitor:
             out_msg += f"  - Error code: `{returncode}`"
 
             if stderr_str != "":
-                out_msg += f"\n - Error log:\n```sh\n{stderr_str}\n```"
+                out_msg += f"\n  - Error log:\n```sh\n{stderr_str}\n```"
 
             if stdout_str != "":
-                out_msg += f"\n - Info:\n```sh\n{stdout_str}\n```"
+                out_msg += f"\n  - Info:\n```sh\n{stdout_str}\n```"
         elif res == None:
             # Command timed out
             if not show_only_std_and_exception:
@@ -880,7 +880,7 @@ class LinuxMonitor:
 
                     if not res and service_name_to_restart != "":
                         restart_msg = await self.restart_service(is_private=is_private, service_name=service_name_to_restart, force_restart=False)
-                        out_msg += f"\n - {restart_msg}"
+                        out_msg += f"\n  - {restart_msg}"
 
             if out_msg != "":
                 out_msg = f"# 🌐 Website access state 🌐\n{out_msg}"
@@ -1049,7 +1049,7 @@ class LinuxMonitor:
             res, out_msg = await self.execute_and_verify(command=status_command, display_name=f"état de {display_name}", show_only_std_and_exception=True, timeout_in_sec=timeout_in_sec, display_only_if_critical=False, check_also_stdout_not_containing=check_also_stdout_not_containing)
             return res, out_msg
         except Exception as e:
-            out_msg = f"⚠️ **Error checking status of service {service_name}**:\n```sh\n{e}\n```"
+            out_msg = f"  - ⚠️ **Error checking status of service {service_name}**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
             return None, out_msg
 
@@ -1089,10 +1089,10 @@ class LinuxMonitor:
                             out_msg += "\n"
                         out_msg += f"- {service_icon} {self.config['services'][service_name]['display_name']}: **{service_status}**"
                         if status != True and status_msg != "":
-                            out_msg += f"\n - {status_msg}"
+                            out_msg += f"\n{status_msg}"
 
                         if status is False:
-                            out_msg += f"\n - " + await self.restart_service(is_private=is_private, service_name=service_name, force_restart=False)
+                            out_msg += f"\n  - " + await self.restart_service(is_private=is_private, service_name=service_name, force_restart=False)
 
         except Exception as e:
             out_msg = f"**Internal error checking services status**:\n```sh\n{e}\n```"
@@ -1258,7 +1258,7 @@ class LinuxMonitor:
 
             # Display the error of retrieving the certificate if there is one
             if cert_infos["error"]:
-                out_msg += f"\n - Reason: `{cert_infos['error']}`"
+                out_msg += f"\n  - Reason: `{cert_infos['error']}`"
         except Exception as e:
             out_msg = f"- ⚠️ **Error checking SSL certificate of [{display_name}](https://{hostname})**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
