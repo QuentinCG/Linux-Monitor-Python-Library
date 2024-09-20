@@ -179,7 +179,7 @@ class LinuxMonitor:
 
     #region Execute Command
 
-    async def execute_and_verify(self, command: List[str], display_name: str, show_only_std_and_exception: bool, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[Optional[bool], str]:
+    async def execute_and_verify(self, command: str, display_name: str, show_only_std_and_exception: bool, timeout_in_sec: Optional[int] = None, display_only_if_critical: bool = False, check_also_stdout_not_containing: Optional[str] = None) -> Tuple[Optional[bool], str]:
         """
         Execute a shell command asynchronously and verify its correct execution.
 
@@ -195,11 +195,11 @@ class LinuxMonitor:
 
         try:
             logging.debug(msg=f"Executing command {display_name} (command: {command})...")
-            process = await asyncio.create_subprocess_exec(
-                *command,
+            process = await asyncio.create_subprocess_shell(
+                command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                shell=False
+                shell=True
             )
 
             try:
@@ -905,18 +905,18 @@ class LinuxMonitor:
             service = self.config['services'][service_name]
             if is_private or service['is_private'] == is_private:
                 is_allowed_to_restart: bool = 'restart_command' in service
-                auto_restart: bool = 'force_restart' in service
+                auto_restart: bool = service.get('force_restart', False)
 
                 if out_msg != "":
                     out_msg += "\n"
-                out_msg += f"- `{service_name}`: {service['display_name']}: "
+                out_msg += f"- `{service_name}`: {service['display_name']}:\n"
                 if not is_allowed_to_restart:
-                    out_msg += " - ❌ Not authorized to restart (no 'restart_command')"
+                    out_msg += " - ❌ Not authorized to restart (no 'restart_command')\n"
                 else:
                     if auto_restart:
-                        out_msg += " - ✅ Can be restarted (automatically & manually)"
+                        out_msg += " - ✅ Can be restarted (automatically & manually)\n"
                     else:
-                        out_msg += " - ✅ Can be restarted (manually only because no 'force_restart')"
+                        out_msg += " - ✅ Can be restarted (manually only because 'force_restart' = false)\n"
 
 
         if out_msg != "":

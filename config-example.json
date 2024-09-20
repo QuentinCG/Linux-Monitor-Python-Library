@@ -104,22 +104,22 @@
     {
         "web": {
             "display_name": "Web server (Apache)",
-            "restart_command": ["sudo", "/etc/init.d/apache2", "restart"],
-            "status_command": ["sudo", "/etc/init.d/apache2", "status"],
+            "restart_command": "sudo /etc/init.d/apache2 restart",
+            "status_command": "sudo /etc/init.d/apache2 status",
             "timeout_in_sec": 30,
             "force_restart": true
         },
         "sql": {
             "display_name": "SQL server (MariaDB)",
-            "restart_command": ["sudo", "/etc/init.d/mariadb", "restart"],
-            "status_command": ["sudo", "/etc/init.d/mariadb", "status"],
+            "restart_command": "sudo /etc/init.d/mariadb restart",
+            "status_command": "sudo /etc/init.d/mariadb status",
             "timeout_in_sec": 30,
             "force_restart": true
         },
         "rdp": {
             "display_name": "RDP (xrdp)",
-            "restart_command": ["sudo", "systemctl", "restart", "xrdp"],
-            "status_command": ["sudo", "systemctl", "is-active", "xrdp"],
+            "restart_command": "sudo systemctl restart xrdp",
+            "status_command": "sudo systemctl is-active xrdp",
             "timeout_in_sec": 30,
             "force_restart": false
         }
