@@ -146,6 +146,8 @@ class LinuxMonitor:
             raise ValueError("The basic configuration must contain the 'warning_uptime_seconds' key")
         self.warning_uptime_seconds: int = basic_config.get('warning_uptime_seconds') # type: ignore
 
+        self.excluded_interfaces: List[str] = basic_config.get('excluded_interfaces', []) # type: ignore
+
         # Get the scheduled tasks for issues configuration
         if self.allow_scheduled_tasks_check_for_issues:
             schedule_check_for_issues_config: Dict[str, Any] = self.config.get('scheduled_tasks_check_for_issues', {}) # type: ignore
@@ -1831,11 +1833,8 @@ class LinuxMonitor:
             stats = psutil.net_if_stats()
             network_usage: str = ""
 
-            # List of interfaces to exclude (e.g., local interface)
-            excluded_interfaces = {"lo"}
-
             for interface in interfaces:
-                if interface in excluded_interfaces or interface not in stats:
+                if interface in self.excluded_interfaces or interface not in stats:
                     continue
 
                 ip_addresses = []
@@ -1924,7 +1923,9 @@ class LinuxMonitor:
                         is_content_json: bool = self.config['commands'][command_config_key].get('is_content_json', False)
                         timeout_in_sec: int = self.config['commands'][command_config_key].get('timeout_in_sec', 10)
 
-                        res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success, show_content_if_issue=show_content_if_issue, is_content_json=is_content_json, timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+                        res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success,
+                                                               show_content_if_issue=show_content_if_issue, is_content_json=is_content_json,
+                                                               timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
                         if res != "":
                             if out_msg != "":
                                 out_msg += "\n"
@@ -1962,7 +1963,9 @@ class LinuxMonitor:
                     if is_scheduled_tasks_for_infos and not self.config['commands'][command_config_key].get('execute_in_scheduled_tasks_for_infos', False):
                         continue
 
-                    res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success, show_content_if_issue=show_content_if_issue, is_content_json=is_content_json, timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
+                    res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success, # type: ignore
+                                                           show_content_if_issue=show_content_if_issue, is_content_json=is_content_json,
+                                                           timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
                     if res != "":
                         if out_msg != "":
                             out_msg += "\n"
