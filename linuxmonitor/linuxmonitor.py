@@ -196,6 +196,9 @@ class LinuxMonitor:
         md: str = ""
         indent: str = "  " * level  # type: ignore # Indentation for markdown headings
 
+        # Preprocess the input to convert single quotes to double quotes
+        json_string = re.sub(r"'", '"', json_string)
+
         # Parse the JSON string to a Python object
         try:
             data = json.loads(json_string)
@@ -212,11 +215,13 @@ class LinuxMonitor:
                     md += f"{indent}- {key}\n"
                     process_data(value, level + 1) # type: ignore
             elif isinstance(data, list):
-                for index, item in enumerate(data): # type: ignore
-                    md += f"{indent}- Item {index + 1}\n"
-                    process_data(item, level + 1) # type: ignore
+                if not data:  # Show "nothing" for empty lists
+                    md += f"{indent}- Nothing\n"
+                else:
+                    for item in data: # type: ignore
+                        process_data(item, level)  # Skip "Item" label # type: ignore
             else:
-                md += f"{indent}  - {data}\n"
+                md += f"{indent}- {data}\n"
 
         process_data(data, level)
 
