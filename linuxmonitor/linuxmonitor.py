@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.3.11 (2024/09/23)"
+__version__ = "1.4.0 (2024/10/07)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1672,7 +1672,7 @@ class LinuxMonitor:
 
     #region Processes
 
-    def get_ordered_processes(self, get_non_consuming_processes: bool = False) -> str:
+    async def get_ordered_processes(self, get_non_consuming_processes: bool = False) -> str:
         """
         Get the ordered list of processes by memory and CPU usage.
 
@@ -1681,7 +1681,18 @@ class LinuxMonitor:
         :return: A string containing the result message.
         """
         try:
-            processes = []
+             processes = []
+
+            # To get meaningful results, we need to ask cpu percent and wait a bit to get valid cpu_percent values on second iteration
+            for dummy_process in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info', 'create_time', 'cmdline']):
+                try:
+                    # First call to cpu_percent to initialize it
+                    dummy_process.cpu_percent(interval=None)
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+            await asyncio.sleep(delay=0.1)
+
+            # Then we can get the processes
             for process in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info', 'create_time', 'cmdline']):
                 try:
                     create_time = datetime.fromtimestamp(process.info['create_time']).strftime("%Y-%m-%d %H:%M:%S")

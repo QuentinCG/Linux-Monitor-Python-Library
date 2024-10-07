@@ -180,7 +180,7 @@ def main() -> None:
     if args.list_processes:
         handled = True
         print("Listing active processes...")
-        out_msg: str = monitoring.get_ordered_processes(get_non_consuming_processes=False)
+        out_msg: str = asyncio.run(monitoring.get_ordered_processes(get_non_consuming_processes=False))
         print(out_msg)
 
     if args.kill_process is not None:
