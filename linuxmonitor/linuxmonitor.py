@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.4.5 (2024/10/07)"
+__version__ = "1.4.6 (2024/10/07)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1691,7 +1691,12 @@ class LinuxMonitor:
                     dummy_process.cpu_percent(interval=None)
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     continue
-            await asyncio.sleep(delay=1)
+
+            if order_by_ram:
+                await asyncio.sleep(delay=1)
+            else:
+                # Let's get more accurate CPU percent values if we are ordering by CPU usage
+                await asyncio.sleep(delay=5)
 
             # Then we can get the processes
             for process in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info', 'create_time', 'cmdline']):
