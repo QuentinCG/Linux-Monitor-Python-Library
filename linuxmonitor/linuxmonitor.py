@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.4.0 (2024/10/07)"
+__version__ = "1.4.1 (2024/10/07)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1681,7 +1681,7 @@ class LinuxMonitor:
         :return: A string containing the result message.
         """
         try:
-             processes = []
+            processes = []
 
             # To get meaningful results, we need to ask cpu percent and wait a bit to get valid cpu_percent values on second iteration
             for dummy_process in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info', 'create_time', 'cmdline']):
@@ -1707,7 +1707,7 @@ class LinuxMonitor:
                         'pid': process.info['pid'],
                         'name': process.info['name'],
                         'username': process.info['username'],
-                        'cpu_percent': process.info['cpu_percent'],
+                        'cpu_percent': process.cpu_percent(interval=None),
                         'memory': process.info['memory_info'].rss,  # Resident Set Size (RSS) memory
                         'create_time': create_time,
                         'cmdline': cmdline
