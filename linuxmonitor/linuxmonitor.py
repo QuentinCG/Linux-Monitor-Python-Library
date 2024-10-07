@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.4.1 (2024/10/07)"
+__version__ = "1.4.2 (2024/10/07)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1690,7 +1690,7 @@ class LinuxMonitor:
                     dummy_process.cpu_percent(interval=None)
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     continue
-            await asyncio.sleep(delay=0.1)
+            await asyncio.sleep(delay=1)
 
             # Then we can get the processes
             for process in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info', 'create_time', 'cmdline']):
@@ -1723,7 +1723,7 @@ class LinuxMonitor:
                 if not get_non_consuming_processes and proc['cpu_percent'] == 0 and proc['memory'] == 0:
                     continue
 
-                res = f"- PID **{proc['pid']}**: {proc['name']} ("
+                res: str = f"- PID **{proc['pid']}**: {proc['name']} ("
 
                 if proc['cpu_percent'] > 0:
                     res += f"CPU {proc['cpu_percent']}%, "
