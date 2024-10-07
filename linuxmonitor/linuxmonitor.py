@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.4.3 (2024/10/07)"
+__version__ = "1.4.4 (2024/10/07)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1672,11 +1672,12 @@ class LinuxMonitor:
 
     #region Processes
 
-    async def get_ordered_processes(self, get_non_consuming_processes: bool = False) -> str:
+    async def get_ordered_processes(self, get_non_consuming_processes: bool = False, order_by_ram: bool = True) -> str:
         """
         Get the ordered list of processes by memory and CPU usage.
 
         :param get_non_consuming_processes: If True, get all processes, otherwise only get processes consuming resources.
+        :param order_by_ram: If True, order by RAM usage, otherwise order by CPU usage.
 
         :return: A string containing the result message.
         """
@@ -1716,7 +1717,7 @@ class LinuxMonitor:
                     pass
 
             # Sort processes by memory usage, then by CPU usage, both in descending order
-            processes.sort(key=lambda proc: (proc['memory'], proc['cpu_percent'], proc['create_time']), reverse=True) # type: ignore
+            processes.sort(key=lambda proc: (order_by_ram ? proc['memory']: proc['cpu_percent'], order_by_ram ? proc['cpu_percent']: proc['memory'], proc['create_time']), reverse=True) # type: ignore
 
             full_res: str = ""
             for proc in processes: # type: ignore
