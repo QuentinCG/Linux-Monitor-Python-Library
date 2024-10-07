@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.4.2 (2024/10/07)"
+__version__ = "1.4.3 (2024/10/07)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1707,7 +1707,7 @@ class LinuxMonitor:
                         'pid': process.info['pid'],
                         'name': process.info['name'],
                         'username': process.info['username'],
-                        'cpu_percent': process.cpu_percent(interval=None),
+                        'cpu_percent': process.info['cpu_percent'],
                         'memory': process.info['memory_info'].rss,  # Resident Set Size (RSS) memory
                         'create_time': create_time,
                         'cmdline': cmdline
