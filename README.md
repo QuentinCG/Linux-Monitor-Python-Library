@@ -48,6 +48,9 @@ echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /sbin/reboot" >> /etc/sudoers.d/USERNAME
 # Only if this library should be able to kill a process on demand:
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/kill" >> /etc/sudoers.d/USERNAME_HERE
 
+# To check last user connection
+echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /usr/bin/last" >> /etc/sudoers.d/USERNAME_HERE
+
 # Add also all processes added in your config JSON file you want the library to be able to execute
 # Example for the existing config-example.json file:
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/systemctl" >> /etc/sudoers.d/USERNAME_HERE

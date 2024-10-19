@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.4.6 (2024/10/07)"
+__version__ = "1.4.7 (2024/10/07)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1490,7 +1490,7 @@ class LinuxMonitor:
 
         try:
             # Fetch the logs since the specified date
-            command: str = f"last --ip --hostlast --time-format iso --since '{past_date}' | grep 'pts/'"
+            command: str = f"sudo last --ip --hostlast --time-format iso --since '{past_date}' | grep 'pts/'"
             last_output: str = subprocess.check_output(
                 args=command,
                 shell=True,
