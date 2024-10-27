@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.4.8 (2024/10/27)"
+__version__ = "1.4.9 (2024/10/27)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -591,7 +591,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical CPU usage**:\n- **{cpu_percent:.2f}%** used on {cpu_cores} core of {cpu_info:.2f}GHz ({cpu_name})\n⚠️ **Check what is using so much CPU power** ⚠️"
 
                 # If there is a critical CPU usage, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes: False, order_by_ram=False, max_processes=10)
+                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)
 
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
@@ -630,7 +630,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {total_ram:.2f}GB\n- Used: {used_ram:.2f}GB ({percent_ram:.2f}%)\n- Free: {free_ram:.2f}GB\n⚠️ **Check what is using so much RAM** ⚠️"
 
                 # If there is a critical RAM usage, we also display the top 10 processes consuming the most RAM
-                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes: False, order_by_ram=True, max_processes=10)
+                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10)
 
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
