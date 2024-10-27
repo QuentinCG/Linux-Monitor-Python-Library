@@ -674,7 +674,7 @@ class LinuxMonitor:
             load_avg: Tuple[float] = psutil.getloadavg()
 
             # Getting an average of all 3 values
-            avg_load_avg: float = 100 * sum(load_avg) / (len(load_avg) * num_cores)
+            avg_load_avg: float = 100 * sum(min(value, num_cores) for value in load_avg) / (len(load_avg) * num_cores)
 
             if avg_load_avg >= self.critical_load_average_percent:
                 out_msg = f"- 🚨 **High load average**: **{avg_load_avg:.2f}%**\n⚠️ **Check what is causing the high load average** ⚠️"
