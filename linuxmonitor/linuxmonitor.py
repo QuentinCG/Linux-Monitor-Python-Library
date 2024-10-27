@@ -1853,7 +1853,7 @@ class LinuxMonitor:
             network_usage: str = ""
 
             for interface in interfaces:
-                if interface in self.excluded_interfaces or interface not in stats:
+                if interface not in stats or (any(re.match(pattern=pattern, string=interface) for pattern in self.excluded_interfaces)):
                     continue
 
                 ip_addresses = []

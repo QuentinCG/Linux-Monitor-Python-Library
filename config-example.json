@@ -13,7 +13,8 @@
         "excluded_interfaces": [
             "lo",
             "docker0",
-            "veth*"
+            "^veth(.*)$",
+            "^br-(.*)$"
         ]
     },
     "scheduled_tasks_check_for_issues": {
