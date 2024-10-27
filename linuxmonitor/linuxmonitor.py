@@ -609,9 +609,9 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical CPU usage**:\n- **{cpu_percent:.2f}%** used on {cpu_cores} core of {cpu_info:.2f}GHz ({cpu_name})\n⚠️ **Check what is using so much CPU power** ⚠️"
 
                 # If there is a critical CPU usage, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)
+                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10) # type: ignore
 
-                logging.warning(msg=out_msg)
+                logging.warning(msg=out_msg) # type: ignore
             elif not display_only_if_critical:
                 if cpu_percent >= self.warning_cpu_percent:
                     icon = "⚠️"
@@ -648,9 +648,9 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {total_ram:.2f}GB\n- Used: {used_ram:.2f}GB ({percent_ram:.2f}%)\n- Free: {free_ram:.2f}GB\n⚠️ **Check what is using so much RAM** ⚠️"
 
                 # If there is a critical RAM usage, we also display the top 10 processes consuming the most RAM
-                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10)
+                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10) # type: ignore
 
-                logging.warning(msg=out_msg)
+                logging.warning(msg=out_msg) # type: ignore
             elif not display_only_if_critical:
                 if percent_ram >= self.warning_ram_percent:
                     icon = "⚠️"
@@ -681,7 +681,7 @@ class LinuxMonitor:
             num_cores: int = psutil.cpu_count()
 
             # Getting load average
-            load_avg: Tuple[float] = psutil.getloadavg()
+            load_avg: Tuple[float] = psutil.getloadavg() # type: ignore
 
             # Getting an average of all 3 values
             avg_load_avg: float = 100 * sum(min(value, num_cores) for value in load_avg) / (len(load_avg) * num_cores)
@@ -690,9 +690,9 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **High load average**: **{avg_load_avg:.2f}%**\n⚠️ **Check what is causing the high load average** ⚠️"
 
                 # If there is a critical load average, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)
+                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10) # type: ignore
 
-                logging.warning(msg=out_msg)
+                logging.warning(msg=out_msg) # type: ignore
             elif not display_only_if_critical:
                 if avg_load_avg >= self.warning_load_average_percent:
                     icon = "⚠️"
