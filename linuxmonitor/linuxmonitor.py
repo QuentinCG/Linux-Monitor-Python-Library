@@ -435,7 +435,7 @@ class LinuxMonitor:
 
     def _get_folder_size_in_bytes(self, start_path: str = '.') -> float:
         """
-        Get the size of a folder in bytes.
+        Get the size of a folder in bytes, including hard-linked files only once.
 
         :param start_path: The path to the folder.
 
@@ -443,13 +443,23 @@ class LinuxMonitor:
         """
         try:
             total_size = 0
+            seen_inodes: set[int] = set()  # Track inodes to avoid double-counting hard-linked files
+
             for dirpath, _, filenames in os.walk(start_path):
                 for f in filenames:
                     fp = os.path.join(dirpath, f)
+                    try:
+                        # Get file information
+                        stat_info = os.stat(fp)
+                        inode = stat_info.st_ino
 
-                    # Skip if it is symbolic link
-                    if not os.path.islink(fp):
-                        total_size += os.path.getsize(fp)
+                        # Include file size only if we haven't seen this inode before
+                        if inode not in seen_inodes:
+                            seen_inodes.add(inode)
+                            total_size += stat_info.st_size
+                    except FileNotFoundError:
+                        logging.warning(f"File {fp} not found. It may be a broken link.")
+
             logging.info(msg=f"Total size of folder {start_path}: {total_size} bytes")
             return total_size
         except Exception as e:
