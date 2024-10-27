@@ -589,6 +589,10 @@ class LinuxMonitor:
 
             if cpu_percent > self.critical_cpu_percent:
                 out_msg = f"- 🚨 **Critical CPU usage**:\n- **{cpu_percent:.2f}%** used on {cpu_cores} core of {cpu_info:.2f}GHz ({cpu_name})\n⚠️ **Check what is using so much CPU power** ⚠️"
+
+                # If there is a critical CPU usage, we also display the top 10 processes consuming the most CPU
+                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes: False, order_by_ram=False, max_processes=10)
+
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if cpu_percent > self.warning_cpu_percent:
@@ -624,6 +628,10 @@ class LinuxMonitor:
             percent_ram: float = ram.percent
             if percent_ram > self.critical_ram_percent:
                 out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {total_ram:.2f}GB\n- Used: {used_ram:.2f}GB ({percent_ram:.2f}%)\n- Free: {free_ram:.2f}GB\n⚠️ **Check what is using so much RAM** ⚠️"
+
+                # If there is a critical RAM usage, we also display the top 10 processes consuming the most RAM
+                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes: False, order_by_ram=True, max_processes=10)
+
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if percent_ram > self.warning_ram_percent:
@@ -1672,7 +1680,7 @@ class LinuxMonitor:
 
     #region Processes
 
-    async def get_ordered_processes(self, get_non_consuming_processes: bool = False, order_by_ram: bool = True) -> str:
+    async def get_ordered_processes(self, get_non_consuming_processes: bool = False, order_by_ram: bool = False, max_processes: int = 10) -> str:
         """
         Get the ordered list of processes by memory and CPU usage.
 
@@ -1727,9 +1735,13 @@ class LinuxMonitor:
                                             proc['create_time']), reverse=True)
 
             full_res: str = ""
+            count: int = max_processes
             for proc in processes: # type: ignore
+                if count <= 0:
+                    break
+
                 if not get_non_consuming_processes and proc['cpu_percent'] == 0 and proc['memory'] == 0:
-                    continue
+                    break
 
                 res: str = f"- PID **{proc['pid']}**: {proc['name']} ("
 
@@ -1750,6 +1762,8 @@ class LinuxMonitor:
                 if full_res != "":
                     full_res += "\n"
                 full_res += res
+
+                count -= 1
 
             if full_res != "":
                 full_res = f"# 🔄 Processes 🔄\n{full_res}"
@@ -2053,11 +2067,135 @@ class LinuxMonitor:
 
         while True:
             out_msg: str = ""
+            msg: str = ""
             logging.info(msg="-----------------------------------------------")
             logging.info(msg="Checking services status and all disk usage, CPU, RAM, Swap, CPU temperature and ping of websites periodically...")
             try:
+                # CPU
+                if is_private:
+                    msg = self.check_cpu_usage(display_only_if_critical=True)
+                    if msg != "":
+                        logging.warning(msg=msg)
+                        if datetime_last_cpu_usage_error_displayed is None or ((datetime.now() - datetime_last_cpu_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += msg
+                            datetime_last_cpu_usage_error_displayed = datetime.now()
+                        else:
+                            logging.warning(msg="CPU usage critical but already notified less than 12 hours ago, not notifying...")
+                    elif datetime_last_cpu_usage_error_displayed is not None:
+                        msg = "✅ **CPU usage returned to normal state**"
+                        logging.info(msg=msg)
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+                        datetime_last_cpu_usage_error_displayed = None
+                    else:
+                        logging.info(msg="- ✅ CPU usage is OK.")
+
+                # RAM
+                if is_private:
+                    msg = self.check_ram_usage(display_only_if_critical=True)
+                    if msg != "":
+                        logging.warning(msg=msg)
+                        if datetime_last_ram_usage_error_displayed is None or ((datetime.now() - datetime_last_ram_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += msg
+                            datetime_last_ram_usage_error_displayed = datetime.now()
+                        else:
+                            logging.warning(msg="RAM usage critical but already notified less than 12 hours ago, not notifying...")
+                    elif datetime_last_ram_usage_error_displayed is not None:
+                        msg = "✅ **RAM usage returned to normal state**"
+                        logging.info(msg=msg)
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+                        datetime_last_ram_usage_error_displayed = None
+                    else:
+                        logging.info(msg="- ✅ RAM usage is OK.")
+
+                # Swap
+                if is_private:
+                    msg = self.check_swap_usage(display_only_if_critical=True)
+                    if msg != "":
+                        logging.warning(msg=msg)
+                        if datetime_last_swap_usage_error_displayed is None or ((datetime.now() - datetime_last_swap_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += msg
+                            datetime_last_swap_usage_error_displayed = datetime.now()
+                        else:
+                            logging.warning(msg="Swap usage critical but already notified less than 12 hours ago, not notifying...")
+                    elif datetime_last_swap_usage_error_displayed is not None:
+                        msg = "✅ **SWAP usage returned to normal state**"
+                        logging.info(msg=msg)
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+                        datetime_last_swap_usage_error_displayed = None
+                    else:
+                        logging.info(msg="- ✅ Swap usage is OK.")
+
+                # CPU temperature
+                if is_private:
+                    msg = self.check_cpu_temperature(display_only_if_critical=True)
+                    if msg != "":
+                        logging.warning(msg=msg)
+                        if datetime_last_cpu_temperature_error_displayed is None or ((datetime.now() - datetime_last_cpu_temperature_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += msg
+                            datetime_last_cpu_temperature_error_displayed = datetime.now()
+                        else:
+                            logging.warning(msg="CPU temperature critical but already notified less than 12 hours ago, not notifying...")
+                    elif datetime_last_cpu_temperature_error_displayed is not None:
+                        msg = "✅ **CPU temperature returned to normal state**"
+                        logging.info(msg=msg)
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+                        datetime_last_cpu_temperature_error_displayed = None
+                    else:
+                        logging.info(msg="- ✅ CPU temperature is OK.")
+
+                # Uptime
+                if is_private:
+                    if need_to_check_uptime:
+                        msg = self.check_uptime(display_only_if_critical=True)
+                        need_to_check_uptime = False
+                        if msg != "":
+                            logging.warning(msg=msg)
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += msg
+                        else:
+                            logging.info(msg="- ✅ Uptime is OK.")
+
+                # User logins
+                if is_private:
+                    msg = self.check_all_recent_user_logins(display_only_if_critical=True)
+                    if msg != "":
+                        logging.warning(msg=msg)
+                        if datetime_last_user_logins_error_displayed is None or ((datetime.now() - datetime_last_user_logins_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += msg
+                            datetime_last_user_logins_error_displayed = datetime.now()
+                        else:
+                            logging.warning(msg="User logins critical but already notified less than 12 hours ago, not notifying...")
+                    elif datetime_last_user_logins_error_displayed is not None:
+                        msg="✅ **Last user logins returned to normal state**"
+                        logging.info(msg=msg)
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+                        datetime_last_user_logins_error_displayed = None
+                    else:
+                        logging.info(msg="- ✅ All user logins are OK.")
+
                 # Services status
-                msg: str = await self.check_all_services_status(is_private=is_private, display_only_if_critical=True)
+                msg = await self.check_all_services_status(is_private=is_private, display_only_if_critical=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_services_error_displayed is None or ((datetime.now() - datetime_last_services_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2224,128 +2362,6 @@ class LinuxMonitor:
                 else:
                     logging.info(msg="- ✅ All commands are OK.")
 
-                # User logins
-                if is_private:
-                    msg = self.check_all_recent_user_logins(display_only_if_critical=True)
-                    if msg != "":
-                        logging.warning(msg=msg)
-                        if datetime_last_user_logins_error_displayed is None or ((datetime.now() - datetime_last_user_logins_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
-                            if out_msg != "":
-                                out_msg += "\n"
-                            out_msg += msg
-                            datetime_last_user_logins_error_displayed = datetime.now()
-                        else:
-                            logging.warning(msg="User logins critical but already notified less than 12 hours ago, not notifying...")
-                    elif datetime_last_user_logins_error_displayed is not None:
-                        msg="✅ **Last user logins returned to normal state**"
-                        logging.info(msg=msg)
-                        if out_msg != "":
-                            out_msg += "\n"
-                        out_msg += msg
-                        datetime_last_user_logins_error_displayed = None
-                    else:
-                        logging.info(msg="- ✅ All user logins are OK.")
-
-                # CPU
-                if is_private:
-                    msg = self.check_cpu_usage(display_only_if_critical=True)
-                    if msg != "":
-                        logging.warning(msg=msg)
-                        if datetime_last_cpu_usage_error_displayed is None or ((datetime.now() - datetime_last_cpu_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
-                            if out_msg != "":
-                                out_msg += "\n"
-                            out_msg += msg
-                            datetime_last_cpu_usage_error_displayed = datetime.now()
-                        else:
-                            logging.warning(msg="CPU usage critical but already notified less than 12 hours ago, not notifying...")
-                    elif datetime_last_cpu_usage_error_displayed is not None:
-                        msg = "✅ **CPU usage returned to normal state**"
-                        logging.info(msg=msg)
-                        if out_msg != "":
-                            out_msg += "\n"
-                        out_msg += msg
-                        datetime_last_cpu_usage_error_displayed = None
-                    else:
-                        logging.info(msg="- ✅ CPU usage is OK.")
-
-                # RAM
-                if is_private:
-                    msg = self.check_ram_usage(display_only_if_critical=True)
-                    if msg != "":
-                        logging.warning(msg=msg)
-                        if datetime_last_ram_usage_error_displayed is None or ((datetime.now() - datetime_last_ram_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
-                            if out_msg != "":
-                                out_msg += "\n"
-                            out_msg += msg
-                            datetime_last_ram_usage_error_displayed = datetime.now()
-                        else:
-                            logging.warning(msg="RAM usage critical but already notified less than 12 hours ago, not notifying...")
-                    elif datetime_last_ram_usage_error_displayed is not None:
-                        msg = "✅ **RAM usage returned to normal state**"
-                        logging.info(msg=msg)
-                        if out_msg != "":
-                            out_msg += "\n"
-                        out_msg += msg
-                        datetime_last_ram_usage_error_displayed = None
-                    else:
-                        logging.info(msg="- ✅ RAM usage is OK.")
-
-                # Swap
-                if is_private:
-                    msg = self.check_swap_usage(display_only_if_critical=True)
-                    if msg != "":
-                        logging.warning(msg=msg)
-                        if datetime_last_swap_usage_error_displayed is None or ((datetime.now() - datetime_last_swap_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
-                            if out_msg != "":
-                                out_msg += "\n"
-                            out_msg += msg
-                            datetime_last_swap_usage_error_displayed = datetime.now()
-                        else:
-                            logging.warning(msg="Swap usage critical but already notified less than 12 hours ago, not notifying...")
-                    elif datetime_last_swap_usage_error_displayed is not None:
-                        msg = "✅ **SWAP usage returned to normal state**"
-                        logging.info(msg=msg)
-                        if out_msg != "":
-                            out_msg += "\n"
-                        out_msg += msg
-                        datetime_last_swap_usage_error_displayed = None
-                    else:
-                        logging.info(msg="- ✅ Swap usage is OK.")
-
-                # CPU temperature
-                if is_private:
-                    msg = self.check_cpu_temperature(display_only_if_critical=True)
-                    if msg != "":
-                        logging.warning(msg=msg)
-                        if datetime_last_cpu_temperature_error_displayed is None or ((datetime.now() - datetime_last_cpu_temperature_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
-                            if out_msg != "":
-                                out_msg += "\n"
-                            out_msg += msg
-                            datetime_last_cpu_temperature_error_displayed = datetime.now()
-                        else:
-                            logging.warning(msg="CPU temperature critical but already notified less than 12 hours ago, not notifying...")
-                    elif datetime_last_cpu_temperature_error_displayed is not None:
-                        msg = "✅ **CPU temperature returned to normal state**"
-                        logging.info(msg=msg)
-                        if out_msg != "":
-                            out_msg += "\n"
-                        out_msg += msg
-                        datetime_last_cpu_temperature_error_displayed = None
-                    else:
-                        logging.info(msg="- ✅ CPU temperature is OK.")
-
-                # Uptime
-                if is_private:
-                    if need_to_check_uptime:
-                        msg = self.check_uptime(display_only_if_critical=True)
-                        need_to_check_uptime = False
-                        if msg != "":
-                            logging.warning(msg=msg)
-                            if out_msg != "":
-                                out_msg += "\n"
-                            out_msg += msg
-                        else:
-                            logging.info(msg="- ✅ Uptime is OK.")
             except Exception as e:
                 out_msg = f"**Internal error during periodic server check task**:\n```sh\n{e}\n```"
                 logging.exception(msg=out_msg)
