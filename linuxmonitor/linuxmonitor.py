@@ -667,11 +667,14 @@ class LinuxMonitor:
         """
         out_msg: str = ""
         try:
+            # Number of CPU cores
+            num_cores: int = psutil.cpu_count()
+
             # Getting load average
-            load_avg = psutil.getloadavg()
+            load_avg: Tuple[float] = psutil.getloadavg()
 
             # Getting an average of all 3 values
-            avg_load_avg: float = sum(load_avg) / len(load_avg)
+            avg_load_avg: float = 100 * sum(load_avg) / (len(load_avg) * num_cores)
 
             if avg_load_avg >= self.critical_load_average_percent:
                 out_msg = f"- 🚨 **High load average**: **{avg_load_avg:.2f}%**\n⚠️ **Check what is causing the high load average** ⚠️"
