@@ -180,13 +180,13 @@ def main() -> None:
     if args.list_processes:
         handled = True
         print("Listing active processes (ordered by RAM usage)...")
-        out_msg: str = asyncio.run(monitoring.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True))
+        out_msg: str = asyncio.run(monitoring.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=20))
         print(out_msg)
 
     if args.list_processes_order_by_cpu:
         handled = True
         print("Listing active processes (ordered by CPU usage)...")
-        out_msg: str = asyncio.run(monitoring.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False))
+        out_msg: str = asyncio.run(monitoring.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=20))
         print(out_msg)
 
     if args.kill_process is not None:
