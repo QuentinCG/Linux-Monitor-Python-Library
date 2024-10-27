@@ -106,6 +106,14 @@ class LinuxMonitor:
         if not isinstance(basic_config, dict):
             raise ValueError("The basic configuration must be a dictionary")
 
+        if 'warning_load_average_percent' not in basic_config:
+            raise ValueError("The basic configuration must contain the 'warning_load_average_percent' key")
+        self.warning_load_average_percent: float = basic_config.get('warning_load_average_percent') # type: ignore
+
+        if 'critical_load_average_percent' not in basic_config:
+            raise ValueError("The basic configuration must contain the 'critical_load_average_percent' key")
+        self.critical_load_average_percent: float = basic_config.get('critical_load_average_percent') # type: ignore
+
         if 'warning_cpu_percent' not in basic_config:
             raise ValueError("The basic configuration must contain the 'warning_cpu_percent' key")
         self.warning_cpu_percent: float = basic_config.get('warning_cpu_percent') # type: ignore
@@ -587,7 +595,7 @@ class LinuxMonitor:
             cpu_cores: int = psutil.cpu_count(logical=False)
             cpu_name: str = self._get_cpu_name()
 
-            if cpu_percent > self.critical_cpu_percent:
+            if cpu_percent >= self.critical_cpu_percent:
                 out_msg = f"- 🚨 **Critical CPU usage**:\n- **{cpu_percent:.2f}%** used on {cpu_cores} core of {cpu_info:.2f}GHz ({cpu_name})\n⚠️ **Check what is using so much CPU power** ⚠️"
 
                 # If there is a critical CPU usage, we also display the top 10 processes consuming the most CPU
@@ -595,7 +603,7 @@ class LinuxMonitor:
 
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
-                if cpu_percent > self.warning_cpu_percent:
+                if cpu_percent >= self.warning_cpu_percent:
                     icon = "⚠️"
                 else:
                     icon = "✅"
@@ -626,7 +634,7 @@ class LinuxMonitor:
             used_ram: float = ram.used / (2**30)
             free_ram: float = total_ram - used_ram
             percent_ram: float = ram.percent
-            if percent_ram > self.critical_ram_percent:
+            if percent_ram >= self.critical_ram_percent:
                 out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {total_ram:.2f}GB\n- Used: {used_ram:.2f}GB ({percent_ram:.2f}%)\n- Free: {free_ram:.2f}GB\n⚠️ **Check what is using so much RAM** ⚠️"
 
                 # If there is a critical RAM usage, we also display the top 10 processes consuming the most RAM
@@ -634,7 +642,7 @@ class LinuxMonitor:
 
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
-                if percent_ram > self.warning_ram_percent:
+                if percent_ram >= self.warning_ram_percent:
                     icon = "⚠️"
                 else:
                     icon = "✅"
@@ -646,6 +654,45 @@ class LinuxMonitor:
 
         if out_msg != "":
             out_msg = f"# 📊 RAM 📊\n{out_msg}"
+
+        return out_msg
+
+    def check_load_average(self, display_only_if_critical: bool=False) -> str:
+        """
+        Check the load average.
+
+        :param display_only_if_critical: If True, the string result will only be returned if there is an error during execution.
+
+        :return: A string containing the result message.
+        """
+        out_msg: str = ""
+        try:
+            # Getting load average
+            load_avg = psutil.getloadavg()
+
+            # Getting an average of all 3 values
+            avg_load_avg: float = sum(load_avg) / len(load_avg)
+
+            if avg_load_avg >= self.critical_load_average_percent:
+                out_msg = f"- 🚨 **High load average**: **{avg_load_avg:.2f}%**\n⚠️ **Check what is causing the high load average** ⚠️"
+
+                # If there is a critical load average, we also display the top 10 processes consuming the most CPU
+                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)
+
+                logging.warning(msg=out_msg)
+            elif not display_only_if_critical:
+                if avg_load_avg >= self.warning_load_average_percent:
+                    icon = "⚠️"
+                else:
+                    icon = "✅"
+                out_msg = f"- {icon} **{avg_load_avg:.2f}%**"
+                logging.info(msg=out_msg)
+        except Exception as e:
+            out_msg = f"- ⚠️ **Error getting load average**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+
+        if out_msg != "":
+            out_msg = f"# 📈 Load Average 📈\n{out_msg}"
 
         return out_msg
 
@@ -665,11 +712,11 @@ class LinuxMonitor:
             used_swap: float = swap.used / (2**30)
             free_swap: float = swap.free / (2**30)
             percent_swap: float = swap.percent
-            if percent_swap > self.critical_swap_percent:
+            if percent_swap >= self.critical_swap_percent:
                 out_msg = f"- 🚨 **Critical SWAP usage**\n- Total: {total_swap:.2f}GB\n- Used: {used_swap:.2f}GB ({percent_swap:.2f}%)\n- Free: {free_swap:.2f}GB\n⚠️ **Check what is using so much SWAP** ⚠️"
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
-                if percent_swap > self.warning_swap_percent:
+                if percent_swap >= self.warning_swap_percent:
                     icon = "⚠️"
                 else:
                     icon = "✅"
@@ -715,11 +762,11 @@ class LinuxMonitor:
             max_temp = max(temp.current for temp in cpu_temps) # type: ignore
 
             # Vérifier la température par rapport au seuil critique
-            if max_temp > self.critical_temperature_celsius:
+            if max_temp >= self.critical_temperature_celsius:
                 out_msg = f"- 🚨 **Critical CPU temperature**:\n- {max_temp:.2f}°C\n- Critical threshold: {self.critical_temperature_celsius}°C\n⚠️ **Check the CPU cooling system** ⚠️"
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
-                if max_temp > self.warning_temperature_celsius:
+                if max_temp >= self.warning_temperature_celsius:
                     icon = "⚠️"
                 else:
                     icon = "✅"
@@ -2048,6 +2095,7 @@ class LinuxMonitor:
 
         datetime_last_disk_usage_error_displayed: Optional[datetime] = None
         datetime_last_folder_usage_error_displayed: Optional[datetime] = None
+        datetime_last_load_average_error_displayed: Optional[datetime] = None
         datetime_last_cpu_usage_error_displayed: Optional[datetime] = None
         datetime_last_ram_usage_error_displayed: Optional[datetime] = None
         datetime_last_swap_usage_error_displayed: Optional[datetime] = None
@@ -2071,6 +2119,28 @@ class LinuxMonitor:
             logging.info(msg="-----------------------------------------------")
             logging.info(msg="Checking services status and all disk usage, CPU, RAM, Swap, CPU temperature and ping of websites periodically...")
             try:
+                # Load average
+                if is_private:
+                    msg = self.check_load_average(display_only_if_critical=True)
+                    if msg != "":
+                        logging.warning(msg=msg)
+                        if datetime_last_load_average_error_displayed is None or ((datetime.now() - datetime_last_load_average_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
+                            if out_msg != "":
+                                out_msg += "\n"
+                            out_msg += msg
+                            datetime_last_load_average_error_displayed = datetime.now()
+                        else:
+                            logging.warning(msg="Load average critical but already notified less than 12 hours ago, not notifying...")
+                    elif datetime_last_load_average_error_displayed is not None:
+                        msg = "✅ **Load average returned to normal state**"
+                        logging.info(msg=msg)
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+                        datetime_last_load_average_error_displayed = None
+                    else:
+                        logging.info(msg="- ✅ Load average is OK.")
+
                 # CPU
                 if is_private:
                     msg = self.check_cpu_usage(display_only_if_critical=True)

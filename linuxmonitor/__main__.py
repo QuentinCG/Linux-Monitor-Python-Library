@@ -71,6 +71,7 @@ def main() -> None:
             out_msg += msg
 
         out_msg += "\n"
+        out_msg += monitoring.check_load_average(display_only_if_critical=False) + "\n"
         out_msg += monitoring.check_cpu_usage(display_only_if_critical=False) + "\n"
         out_msg += monitoring.check_ram_usage(display_only_if_critical=False) + "\n"
         out_msg += monitoring.check_swap_usage(display_only_if_critical=False) + "\n"

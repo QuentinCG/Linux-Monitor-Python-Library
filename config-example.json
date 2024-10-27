@@ -1,5 +1,7 @@
 {
     "basic_config": {
+        "critical_load_average_percent": 90.0,
+        "warning_load_average_percent": 80.0,
         "critical_cpu_percent": 90.0,
         "warning_cpu_percent": 80.0,
         "critical_ram_percent": 90.0,
