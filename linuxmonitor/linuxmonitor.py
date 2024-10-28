@@ -597,6 +597,10 @@ class LinuxMonitor:
         """
         out_msg: str = ""
         try:
+            if display_only_if_critical and self.critical_cpu_percent > 100:
+                # There is no need to check for showing msg only if critical and the critical percentage is greater than the max possible
+                return out_msg
+
             # Getting average CPU usage for the last second
             cpu_percent: float = psutil.cpu_percent(percpu=False)
 
@@ -638,6 +642,10 @@ class LinuxMonitor:
         """
         out_msg: str = ""
         try:
+            if display_only_if_critical and self.critical_ram_percent > 100:
+                # There is no need to check for showing msg only if critical and the critical percentage is greater than the max possible
+                return out_msg
+
             # Getting RAM usage
             ram = psutil.virtual_memory()
             total_ram: float = ram.total / (2**30)
@@ -677,6 +685,10 @@ class LinuxMonitor:
         """
         out_msg: str = ""
         try:
+            if display_only_if_critical and self.critical_load_average_percent > 100:
+                # There is no need to check for showing msg only if critical and the critical percentage is greater than the max possible
+                return out_msg
+
             # Number of CPU cores
             num_cores: int = psutil.cpu_count()
 
@@ -719,6 +731,10 @@ class LinuxMonitor:
         """
         out_msg: str = ""
         try:
+            if display_only_if_critical and self.critical_swap_percent > 100:
+                # There is no need to check for showing msg only if critical and the critical percentage is greater than the max possible
+                return out_msg
+
             # Getting Swap usage
             swap = psutil.swap_memory()
             total_swap: float = swap.total / (2**30)
