@@ -613,7 +613,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical CPU usage**:\n- **{cpu_percent:.2f}%** used on {cpu_cores} core of {cpu_info:.2f}GHz ({cpu_name})\n⚠️ **Check what is using so much CPU power** ⚠️"
 
                 # If there is a critical CPU usage, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10) # type: ignore
+                out_msg += "\n" + asyncio.run(self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)) # type: ignore
 
                 logging.warning(msg=out_msg) # type: ignore
             elif not display_only_if_critical:
@@ -656,7 +656,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {total_ram:.2f}GB\n- Used: {used_ram:.2f}GB ({percent_ram:.2f}%)\n- Free: {free_ram:.2f}GB\n⚠️ **Check what is using so much RAM** ⚠️"
 
                 # If there is a critical RAM usage, we also display the top 10 processes consuming the most RAM
-                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10) # type: ignore
+                out_msg += "\n" + asyncio.run(self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10)) # type: ignore
 
                 logging.warning(msg=out_msg) # type: ignore
             elif not display_only_if_critical:
@@ -702,7 +702,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **High load average**: **{avg_load_avg:.2f}%**\n⚠️ **Check what is causing the high load average** ⚠️"
 
                 # If there is a critical load average, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10) # type: ignore
+                out_msg += "\n" + asyncio.run(self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)) # type: ignore
 
                 logging.warning(msg=out_msg) # type: ignore
             elif not display_only_if_critical:
@@ -1574,7 +1574,7 @@ class LinuxMonitor:
 
         try:
             # Fetch the logs since the specified date
-            command: str = f"sudo last --ip --hostlast --time-format iso --since '{past_date}' | grep 'pts/'"
+            command: str = f"sudo last --ip --hostlast --time-format iso --since '{past_date}' | grep 'pts/' || true"
             last_output: str = subprocess.check_output(
                 args=command,
                 shell=True,
@@ -2558,6 +2558,14 @@ class LinuxMonitor:
                 # User logins
                 if is_private:
                     msg = self.check_all_recent_user_logins(display_only_if_critical=False)
+                    if msg != "":
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += msg
+
+                # Load average
+                if is_private:
+                    msg = self.check_load_average(display_only_if_critical=False)
                     if msg != "":
                         if out_msg != "":
                             out_msg += "\n"
