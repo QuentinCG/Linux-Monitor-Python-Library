@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.5.5 (2024/10/27)"
+__version__ = "1.5.6 (2024/11/03)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -587,7 +587,7 @@ class LinuxMonitor:
             logging.exception(msg=f"Error getting CPU name:\n{e}")
             return ""
 
-    def check_cpu_usage(self, display_only_if_critical: bool=False) -> str:
+    async def check_cpu_usage(self, display_only_if_critical: bool=False) -> str:
         """
         Check the CPU usage.
 
@@ -613,9 +613,9 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical CPU usage**:\n- **{cpu_percent:.2f}%** used on {cpu_cores} core of {cpu_info:.2f}GHz ({cpu_name})\n⚠️ **Check what is using so much CPU power** ⚠️"
 
                 # If there is a critical CPU usage, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + asyncio.run(self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)) # type: ignore
+                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)
 
-                logging.warning(msg=out_msg) # type: ignore
+                logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if cpu_percent >= self.warning_cpu_percent:
                     icon = "⚠️"
@@ -632,7 +632,7 @@ class LinuxMonitor:
 
         return out_msg
 
-    def check_ram_usage(self, display_only_if_critical: bool=False) -> str:
+    async def check_ram_usage(self, display_only_if_critical: bool=False) -> str:
         """
         Check the RAM usage.
 
@@ -656,9 +656,9 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {total_ram:.2f}GB\n- Used: {used_ram:.2f}GB ({percent_ram:.2f}%)\n- Free: {free_ram:.2f}GB\n⚠️ **Check what is using so much RAM** ⚠️"
 
                 # If there is a critical RAM usage, we also display the top 10 processes consuming the most RAM
-                out_msg += "\n" + asyncio.run(self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10)) # type: ignore
+                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10)
 
-                logging.warning(msg=out_msg) # type: ignore
+                logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if percent_ram >= self.warning_ram_percent:
                     icon = "⚠️"
@@ -675,7 +675,7 @@ class LinuxMonitor:
 
         return out_msg
 
-    def check_load_average(self, display_only_if_critical: bool=False) -> str:
+    async def check_load_average(self, display_only_if_critical: bool=False) -> str:
         """
         Check the load average.
 
@@ -702,9 +702,9 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **High load average**: **{avg_load_avg:.2f}%**\n⚠️ **Check what is causing the high load average** ⚠️"
 
                 # If there is a critical load average, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + asyncio.run(self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)) # type: ignore
+                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)
 
-                logging.warning(msg=out_msg) # type: ignore
+                logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if avg_load_avg >= self.warning_load_average_percent:
                     icon = "⚠️"
@@ -721,7 +721,7 @@ class LinuxMonitor:
 
         return out_msg
 
-    def check_swap_usage(self, display_only_if_critical: bool=False) -> str:
+    async def check_swap_usage(self, display_only_if_critical: bool=False) -> str:
         """
         Check the SWAP usage.
 
@@ -743,6 +743,10 @@ class LinuxMonitor:
             percent_swap: float = swap.percent
             if percent_swap >= self.critical_swap_percent:
                 out_msg = f"- 🚨 **Critical SWAP usage**\n- Total: {total_swap:.2f}GB\n- Used: {used_swap:.2f}GB ({percent_swap:.2f}%)\n- Free: {free_swap:.2f}GB\n⚠️ **Check what is using so much SWAP** ⚠️"
+
+                # If there is a critical SWAP/RAM usage, we also display the top 10 processes consuming the most RAM
+                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10)
+
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
                 if percent_swap >= self.warning_swap_percent:
@@ -2150,7 +2154,7 @@ class LinuxMonitor:
             try:
                 # Load average
                 if is_private:
-                    msg = self.check_load_average(display_only_if_critical=True)
+                    msg = await self.check_load_average(display_only_if_critical=True)
                     if msg != "":
                         logging.warning(msg=msg)
                         if datetime_last_load_average_error_displayed is None or ((datetime.now() - datetime_last_load_average_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2172,7 +2176,7 @@ class LinuxMonitor:
 
                 # CPU
                 if is_private:
-                    msg = self.check_cpu_usage(display_only_if_critical=True)
+                    msg = await self.check_cpu_usage(display_only_if_critical=True)
                     if msg != "":
                         logging.warning(msg=msg)
                         if datetime_last_cpu_usage_error_displayed is None or ((datetime.now() - datetime_last_cpu_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2194,7 +2198,7 @@ class LinuxMonitor:
 
                 # RAM
                 if is_private:
-                    msg = self.check_ram_usage(display_only_if_critical=True)
+                    msg = await self.check_ram_usage(display_only_if_critical=True)
                     if msg != "":
                         logging.warning(msg=msg)
                         if datetime_last_ram_usage_error_displayed is None or ((datetime.now() - datetime_last_ram_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2216,7 +2220,7 @@ class LinuxMonitor:
 
                 # Swap
                 if is_private:
-                    msg = self.check_swap_usage(display_only_if_critical=True)
+                    msg = await self.check_swap_usage(display_only_if_critical=True)
                     if msg != "":
                         logging.warning(msg=msg)
                         if datetime_last_swap_usage_error_displayed is None or ((datetime.now() - datetime_last_swap_usage_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2565,7 +2569,7 @@ class LinuxMonitor:
 
                 # Load average
                 if is_private:
-                    msg = self.check_load_average(display_only_if_critical=False)
+                    msg = await self.check_load_average(display_only_if_critical=False)
                     if msg != "":
                         if out_msg != "":
                             out_msg += "\n"
@@ -2573,7 +2577,7 @@ class LinuxMonitor:
 
                 # CPU
                 if is_private:
-                    msg = self.check_cpu_usage(display_only_if_critical=False)
+                    msg = await self.check_cpu_usage(display_only_if_critical=False)
                     if msg != "":
                         if out_msg != "":
                             out_msg += "\n"
@@ -2581,7 +2585,7 @@ class LinuxMonitor:
 
                 # RAM
                 if is_private:
-                    msg = self.check_ram_usage(display_only_if_critical=False)
+                    msg = await self.check_ram_usage(display_only_if_critical=False)
                     if msg != "":
                         if out_msg != "":
                             out_msg += "\n"
@@ -2589,7 +2593,7 @@ class LinuxMonitor:
 
                 # Swap
                 if is_private:
-                    msg = self.check_swap_usage(display_only_if_critical=False)
+                    msg = await self.check_swap_usage(display_only_if_critical=False)
                     if msg != "":
                         if out_msg != "":
                             out_msg += "\n"
