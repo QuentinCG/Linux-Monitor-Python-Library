@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2024)"
 __python_version__ = "3.+"
-__version__ = "1.5.6 (2024/11/03)"
+__version__ = "1.5.7 (2026/08/19)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -48,6 +48,7 @@ import socket
 from datetime import datetime, timedelta
 import platform
 import re
+import shlex
 import logging
 import asyncio
 from http.client import responses
@@ -2020,40 +2021,166 @@ class LinuxMonitor:
             logging.exception(msg=out_msg)
             return out_msg
 
-    async def execute_command(self, is_private: bool, command_name: str) -> str:
+    def _apply_command_parameters(self, command_template: str, parameters: str) -> str:
+        """
+        Substitute user-provided parameters into a command template in an injection-safe way.
+
+        Placeholders supported in the template:
+            - {args}          : replaced by all provided parameters (space separated)
+            - {arg1}, {arg2}  : replaced by the Nth provided parameter
+        If the template contains no placeholder, all parameters are appended at the end.
+
+        Every parameter is shell-quoted (shlex.quote) so it is always treated as a single
+        literal argument, which prevents command injection through the parameters.
+
+        :param command_template: The command as defined in the configuration file.
+        :param parameters: The raw parameters string provided by the user.
+
+        :return: The final command ready to be executed.
+        """
+        param_list: List[str] = shlex.split(parameters) if parameters else []
+        quoted_params: List[str] = [shlex.quote(param) for param in param_list]
+
+        has_placeholder: bool = ("{args}" in command_template) or bool(re.search(pattern=r"\{arg\d+\}", string=command_template))
+
+        # No placeholder: append every quoted parameter at the end of the command
+        if not has_placeholder:
+            if quoted_params:
+                return command_template + " " + " ".join(quoted_params)
+            return command_template
+
+        final_command: str = command_template
+
+        # Replace positional placeholders {arg1}, {arg2}, ...
+        for index, quoted_param in enumerate(iterable=quoted_params, start=1):
+            final_command = final_command.replace(f"{{arg{index}}}", quoted_param)
+
+        # Replace the catch-all {args} placeholder with every quoted parameter
+        final_command = final_command.replace("{args}", " ".join(quoted_params))
+
+        # Any positional placeholder left unprovided is replaced by an empty string
+        final_command = re.sub(pattern=r"\{arg\d+\}", repl="", string=final_command)
+
+        return final_command
+
+    def _normalize_command_name(self, name: str) -> str:
+        """
+        Normalize a command name for permissive matching: lowercase and ignore spaces, '-' and '_'.
+        """
+        return re.sub(pattern=r"[\s\-_]+", repl="", string=name.strip().lower())
+
+    def _levenshtein_distance(self, a: str, b: str) -> int:
+        """
+        Compute the Levenshtein (edit) distance between two strings (number of single-character
+        insertions, deletions or substitutions needed to turn one into the other).
+        """
+        if a == b:
+            return 0
+        if len(a) == 0:
+            return len(b)
+        if len(b) == 0:
+            return len(a)
+
+        previous_row: List[int] = list(range(len(b) + 1))
+        for i, char_a in enumerate(iterable=a, start=1):
+            current_row: List[int] = [i]
+            for j, char_b in enumerate(iterable=b, start=1):
+                insert_cost: int = current_row[j - 1] + 1
+                delete_cost: int = previous_row[j] + 1
+                replace_cost: int = previous_row[j - 1] + (0 if char_a == char_b else 1)
+                current_row.append(min(insert_cost, delete_cost, replace_cost))
+            previous_row = current_row
+
+        return previous_row[-1]
+
+    def _find_matching_command_key(self, command_name: str) -> Optional[str]:
+        """
+        Find the configured command key matching the requested name in a permissive way:
+        exact match first, then case/'-'/'_'/space-insensitive match, then a small typo tolerance.
+        Ambiguous matches (several equally good candidates) are rejected to avoid running the wrong command.
+
+        :param command_name: The command name requested by the user.
+
+        :return: The matching command key from the configuration, or None if no safe match is found.
+        """
+        command_keys: List[str] = list(self.config['commands'].keys())
+
+        # 1. Exact match
+        if command_name in command_keys:
+            return command_name
+
+        # 2. Normalized match (case-insensitive, '-'/'_'/spaces ignored)
+        target: str = self._normalize_command_name(name=command_name)
+        normalized_matches: List[str] = [key for key in command_keys if self._normalize_command_name(name=key) == target]
+        if len(normalized_matches) == 1:
+            return normalized_matches[0]
+        if len(normalized_matches) > 1:
+            # Several commands normalize to the same name: too ambiguous to guess
+            return None
+
+        # 3. Fuzzy match tolerating small typos (on the normalized names)
+        threshold: int = 1 if len(target) <= 4 else 2
+        best_distance: Optional[int] = None
+        best_keys: List[str] = []
+        for key in command_keys:
+            distance: int = self._levenshtein_distance(a=self._normalize_command_name(name=key), b=target)
+            if best_distance is None or distance < best_distance:
+                best_distance = distance
+                best_keys = [key]
+            elif distance == best_distance:
+                best_keys.append(key)
+
+        # Only accept a typo-based match if it is close enough AND unambiguous
+        if best_distance is not None and best_distance <= threshold and len(best_keys) == 1:
+            return best_keys[0]
+
+        return None
+
+    async def execute_command(self, is_private: bool, command_name: str, parameters: str = "") -> str:
         try:
             out_msg: str = ""
-            display_name: str = command_name
-            for command_config_key in self.config['commands'].keys():
-                if command_config_key == command_name:
-                    display_name = self.config['commands'][command_config_key]['display_name']
-                    command: str = self.config['commands'][command_config_key]['command']
-                    is_private_cmd: bool = self.config['commands'][command_config_key]['is_private']
 
-                    if is_private or is_private == is_private_cmd:
-                        show_content_if_success: bool = self.config['commands'][command_config_key].get('show_content_if_success', False)
-                        show_content_if_issue: bool = self.config['commands'][command_config_key].get('show_content_if_issue', False)
-                        is_content_json: bool = self.config['commands'][command_config_key].get('is_content_json', False)
-                        timeout_in_sec: int = self.config['commands'][command_config_key].get('timeout_in_sec', 10)
+            command_config_key: Optional[str] = self._find_matching_command_key(command_name=command_name)
+            if command_config_key is None:
+                out_msg = f"⚠️ **Command {command_name} not found**"
+                logging.warning(msg=out_msg)
+                return out_msg
 
-                        res: str = await self._execute_command(command=command, display_name=display_name, show_content_if_success=show_content_if_success,
-                                                               show_content_if_issue=show_content_if_issue, is_content_json=is_content_json,
-                                                               timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
-                        if res != "":
-                            if out_msg != "":
-                                out_msg += "\n"
-                            out_msg += f"{res}"
-                    else:
-                        out_msg = f"⚠️ **Command {display_name} is not allowed**"
-                        logging.warning(msg=out_msg)
+            display_name: str = self.config['commands'][command_config_key]['display_name']
+            command: str = self.config['commands'][command_config_key]['command']
+            is_private_cmd: bool = self.config['commands'][command_config_key]['is_private']
 
-                    if out_msg != "":
-                        out_msg = f"# 📜 Command {display_name} 📜\n{out_msg}"
+            if is_private or is_private == is_private_cmd:
+                parameters = parameters.strip()
+                # A command accepts parameters only if it exposes a placeholder or explicitly opts in
+                accept_parameters: bool = self.config['commands'][command_config_key].get('accept_parameters', False) \
+                    or ("{args}" in command) or bool(re.search(pattern=r"\{arg\d+\}", string=command))
 
-                    return out_msg
+                if parameters != "" and not accept_parameters:
+                    out_msg = f"⚠️ **Command {display_name} does not accept parameters**"
+                    logging.warning(msg=out_msg)
+                else:
+                    final_command: str = self._apply_command_parameters(command_template=command, parameters=parameters)
 
-            out_msg = f"⚠️ **Command {display_name} not found**"
-            logging.warning(msg=out_msg)
+                    show_content_if_success: bool = self.config['commands'][command_config_key].get('show_content_if_success', False)
+                    show_content_if_issue: bool = self.config['commands'][command_config_key].get('show_content_if_issue', False)
+                    is_content_json: bool = self.config['commands'][command_config_key].get('is_content_json', False)
+                    timeout_in_sec: int = self.config['commands'][command_config_key].get('timeout_in_sec', 10)
+
+                    res: str = await self._execute_command(command=final_command, display_name=display_name, show_content_if_success=show_content_if_success,
+                                                           show_content_if_issue=show_content_if_issue, is_content_json=is_content_json,
+                                                           timeout_in_sec=timeout_in_sec, display_only_if_critical=False)
+                    if res != "":
+                        if out_msg != "":
+                            out_msg += "\n"
+                        out_msg += f"{res}"
+            else:
+                out_msg = f"⚠️ **Command {display_name} is not allowed**"
+                logging.warning(msg=out_msg)
+
+            if out_msg != "":
+                out_msg = f"# 📜 Command {display_name} 📜\n{out_msg}"
+
             return out_msg
         except Exception as e:
             return f"⚠️ **Error executing command {command_name}**:\n```sh\n{e}\n```"

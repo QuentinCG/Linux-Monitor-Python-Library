@@ -134,8 +134,37 @@ python3 -m linuxmonitor --list_commands --config_file config-example.json --node
 # Execute a custom commands
 python3 -m linuxmonitor --execute_command CUSTOM_COMMAND_HERE --config_file config-example.json --nodebug
 
+# Execute a custom command with parameters (only for commands with "accept_parameters": true or a {arg1}/{args} placeholder)
+python3 -m linuxmonitor --execute_command unban_ip --parameters "1.2.3.4" --config_file config-example.json --nodebug
+
 # Execute all custom commands
 python3 -m linuxmonitor --execute_all_commands --config_file config-example.json --nodebug
+```
+
+## Custom commands with parameters
+
+A custom command (in the `commands` section of the config file) can receive parameters at execution time.
+This is opt-in per command: set `"accept_parameters": true` and/or use a placeholder in the `command` string.
+
+Placeholders inside the `command` string:
+  - `{arg1}`, `{arg2}`, ... : replaced by the Nth provided parameter
+  - `{args}` : replaced by all provided parameters
+  - no placeholder : all parameters are appended at the end of the command
+
+Every parameter is shell-quoted before substitution, so it is always treated as a single literal
+argument. This prevents command injection through the parameters.
+
+Example config entry:
+```json
+"unban_ip": {
+    "display_name": "Unban an IP from Fail2Ban",
+    "command": "sudo fail2ban-client unban {arg1}",
+    "is_private": true,
+    "accept_parameters": true,
+    "show_content_if_success": true,
+    "show_content_if_issue": true,
+    "timeout_in_sec": 60
+}
 ```
 
 ## How to use in python script

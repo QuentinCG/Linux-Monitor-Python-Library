@@ -214,6 +214,17 @@
             "execute_in_scheduled_tasks_for_infos": true,
             "timeout_in_sec": 60
         },
+        "unban_ip": {
+            "display_name": "Unban an IP from Fail2Ban",
+            "command": "sudo fail2ban-client unban {arg1}",
+            "is_private": true,
+            "accept_parameters": true,
+            "show_content_if_success": true,
+            "show_content_if_issue": true,
+            "execute_in_scheduled_tasks_for_issues": false,
+            "execute_in_scheduled_tasks_for_infos": false,
+            "timeout_in_sec": 60
+        },
         "update": {
             "display_name": "Update 1/3 (Package update)",
             "command": "sudo /usr/bin/apt-get update -q >/dev/null && { output=$(/usr/bin/apt list --upgradable 2>/dev/null | /usr/bin/grep -E 'upgradable from'); if [ -z \"$output\" ]; then /usr/bin/echo \"Packages already updated\"; else /usr/bin/echo \"$output\"; fi; }",

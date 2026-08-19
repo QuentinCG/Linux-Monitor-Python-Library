@@ -31,6 +31,7 @@ def main() -> None:
     parser.add_argument('--list_commands', action='store_true', help='📋 List all available commands 📋')
     parser.add_argument('execute_command', type=str, help='📋 Execute a command 📋')
     parser.add_argument('execute_all_commands', type=str, help='📋 Execute all commands 📋')
+    parser.add_argument('--parameters', type=str, default='', help='Optional parameters passed to --execute_command (space separated, quoted if needed)')
 
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--nodebug', action='store_true', help='Disable all logs')
@@ -163,7 +164,7 @@ def main() -> None:
     if args.execute_command is not None:
         handled = True
         print(f"Executing command: {args.execute_command}...")
-        out_msg: str = asyncio.run(monitoring.execute_command(is_private=True, command_name=args.execute_command))
+        out_msg: str = asyncio.run(monitoring.execute_command(is_private=True, command_name=args.execute_command, parameters=args.parameters))
         print(out_msg)
 
     if args.execute_all_commands is not None:
