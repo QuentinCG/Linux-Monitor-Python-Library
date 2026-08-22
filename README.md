@@ -57,6 +57,8 @@ echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /bin/systemctl" >> /etc/sudoers.d/USERNA
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/apache2" >> /etc/sudoers.d/USERNAME_HERE
 echo "USERNAME_HERE ALL=(ALL) NOPASSWD: /etc/init.d/mariadb" >> /etc/sudoers.d/USERNAME_HERE
 ```
+  - Install missing packages :
+    - If `last` command not available, install needed package: `sudo apt install wtmpdb util-linux`
   - Check monitor possibilities (you can find it out by calling `python -m linuxmonitor --help` from the root of this repository)
   - Load your shell or python script
 
@@ -171,6 +173,7 @@ Example config entry:
 
 Example of python script using this library:
  - [Discord Bot Linux Monitor](https://github.com/QuentinCG/Discord-Bot-Linux-Monitor-Python-Library)
+
 
 ## License
 

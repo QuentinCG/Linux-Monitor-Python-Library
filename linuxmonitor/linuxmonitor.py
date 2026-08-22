@@ -31,9 +31,9 @@ Non exhaustive list of features (available by using it in shell or in python scr
 __author__ = 'Quentin Comte-Gaz'
 __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
-__copyright__ = "Copyright Quentin Comte-Gaz (2024)"
+__copyright__ = "Copyright Quentin Comte-Gaz (2026)"
 __python_version__ = "3.+"
-__version__ = "1.5.7 (2026/08/19)"
+__version__ = "1.5.8 (2026/08/22)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1575,11 +1575,11 @@ class LinuxMonitor:
         :return: A dictionary containing the recent user logins.
         """
         # Format the date without microseconds (milliseconds)
-        past_date: str = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%S')
+        past_date: str = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
 
         try:
             # Fetch the logs since the specified date
-            command: str = f"sudo last --ip --hostlast --time-format iso --since '{past_date}' | grep 'pts/' || true"
+            command: str = f"sudo /usr/bin/last --ip --hostlast --time-format iso --since '{past_date}' | grep 'pts/' || true"
             last_output: str = subprocess.check_output(
                 args=command,
                 shell=True,
