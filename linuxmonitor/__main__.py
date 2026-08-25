@@ -1,4 +1,4 @@
-from .linuxmonitor import LinuxMonitor
+from .linuxmonitor import LinuxMonitor, __version__
 
 import argparse
 import sys
@@ -9,6 +9,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='System Management CLI Tool')
 
     # Define available arguments
+    parser.add_argument('--version', action='version', version=f'Linux Monitor {__version__}', help='Show the Linux Monitor library version and exit')
     parser.add_argument('--config_file', type=str, required=True, help='Path to the configuration file (must be a JSON file)')
     parser.add_argument('--start_scheduled_task_check_for_issues', action='store_true', help='Start periodic task to show potential issues periodically (in background, will not stop until you stop the script)')
     parser.add_argument('--start_scheduled_task_show_info', action='store_true', help='Start periodic task to show system information periodically (in background, will not stop until you stop the script)')

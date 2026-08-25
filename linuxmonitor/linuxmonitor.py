@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2026)"
 __python_version__ = "3.+"
-__version__ = "1.5.8 (2026/08/22)"
+__version__ = "1.5.9 (2026/08/22)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1538,6 +1538,30 @@ class LinuxMonitor:
 
         return out_msg
 
+    def get_raw_version(self) -> str:
+        """
+        Get the raw version of the Linux Monitor library.
+
+        :return: The version string (e.g. "1.5.9 (2026/08/22)").
+        """
+        return __version__
+
+    def get_version(self) -> str:
+        """
+        Get the version of the Linux Monitor library.
+
+        :return: A string containing the result message.
+        """
+        out_msg: str = "# 📦 Linux Monitor version 📦\n"
+        try:
+            out_msg += f"- **{__version__}**"
+            logging.info(msg=out_msg)
+        except Exception as e:
+            out_msg += f"⚠️ **Error getting version**:\n```sh\n{e}\n```"
+            logging.exception(msg=out_msg)
+
+        return out_msg
+
     #endregion
 
     #region Users
@@ -2232,6 +2256,23 @@ class LinuxMonitor:
             out_msg = f"⚠️ **Error listing commands**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
             return out_msg
+
+    def get_command_names(self, is_private: bool) -> List[Tuple[str, str]]:
+        """
+        Return the available commands (name and display name) for the given visibility.
+        Same visibility rules as list_commands. Useful to build UI autocompletion.
+
+        :param is_private: True to get all commands (private context), False for public-only commands.
+
+        :return: A list of (command_name, display_name) tuples.
+        """
+        result: List[Tuple[str, str]] = []
+        for command_config_key in self.config['commands'].keys():
+            if is_private or is_private == self.config['commands'][command_config_key]['is_private']:
+                display_name: str = self.config['commands'][command_config_key]['display_name']
+                result.append((command_config_key, display_name))
+        return result
+
 
     #endregion
 
