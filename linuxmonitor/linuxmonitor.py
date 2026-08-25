@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2026)"
 __python_version__ = "3.+"
-__version__ = "1.5.9 (2026/08/22)"
+__version__ = "1.5.10 (2026/08/22)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1542,7 +1542,7 @@ class LinuxMonitor:
         """
         Get the raw version of the Linux Monitor library.
 
-        :return: The version string (e.g. "1.5.9 (2026/08/22)").
+        :return: The version string (e.g. "x.x.x (20xx/xx/xx)").
         """
         return __version__
 
@@ -1816,7 +1816,7 @@ class LinuxMonitor:
                 try:
                     create_time = datetime.fromtimestamp(process.info['create_time']).strftime("%Y-%m-%d %H:%M:%S")
 
-                    cmdline = ' '.join(process.info['cmdline'])  # Join the command line arguments
+                    cmdline = ' '.join(process.info['cmdline'] or [])  # cmdline can be None (e.g. kernel threads)
                     # Remove extra spaces
                     cmdline = re.sub(r'\s+', ' ', cmdline).strip()
                     if len(cmdline) > 60:
