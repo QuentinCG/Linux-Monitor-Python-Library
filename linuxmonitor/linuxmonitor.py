@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2026)"
 __python_version__ = "3.+"
-__version__ = "1.5.11 (2026/08/29)"
+__version__ = "1.5.12 (2026/08/29)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -1090,6 +1090,23 @@ class LinuxMonitor:
 
         logging.info(msg=out_msg)
         return out_msg
+
+    def get_service_names(self, is_private: bool) -> List[Tuple[str, str]]:
+        """
+        Return the available services (name and display name) for the given visibility.
+        Same visibility rules as get_all_services. Useful to build UI autocompletion.
+
+        :param is_private: True to get all services (private context), False for public-only services.
+
+        :return: A list of (service_name, display_name) tuples.
+        """
+        result: List[Tuple[str, str]] = []
+        for service_name in self.config['services'].keys():
+            service = self.config['services'][service_name]
+            if is_private or service.get('is_private', False) == is_private:
+                display_name: str = service.get('display_name', service_name)
+                result.append((service_name, display_name))
+        return result
 
     async def restart_service(self, is_private: bool, service_name: str, force_restart: bool) -> str:
         """
