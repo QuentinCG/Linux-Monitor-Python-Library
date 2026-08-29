@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2026)"
 __python_version__ = "3.+"
-__version__ = "1.5.8 (2026/08/22)"
+__version__ = "1.5.9 (2026/08/29)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -154,6 +154,10 @@ class LinuxMonitor:
         if 'warning_uptime_seconds' not in basic_config:
             raise ValueError("The basic configuration must contain the 'warning_uptime_seconds' key")
         self.warning_uptime_seconds: int = basic_config.get('warning_uptime_seconds') # type: ignore
+
+        self.processes_to_display_if_error: int = 10
+        if 'processes_to_display_if_error' in basic_config:
+            self.processes_to_display_if_error = basic_config.get('processes_to_display_if_error') # type: ignore
 
         self.excluded_interfaces: List[str] = basic_config.get('excluded_interfaces', []) # type: ignore
 
@@ -614,7 +618,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical CPU usage**:\n- **{cpu_percent:.2f}%** used on {cpu_cores} core of {cpu_info:.2f}GHz ({cpu_name})\n⚠️ **Check what is using so much CPU power** ⚠️"
 
                 # If there is a critical CPU usage, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)
+                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=self.processes_to_display_if_error)
 
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
@@ -657,7 +661,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {total_ram:.2f}GB\n- Used: {used_ram:.2f}GB ({percent_ram:.2f}%)\n- Free: {free_ram:.2f}GB\n⚠️ **Check what is using so much RAM** ⚠️"
 
                 # If there is a critical RAM usage, we also display the top 10 processes consuming the most RAM
-                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10)
+                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=self.processes_to_display_if_error)
 
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
@@ -703,7 +707,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **High load average**: **{avg_load_avg:.2f}%**\n⚠️ **Check what is causing the high load average** ⚠️"
 
                 # If there is a critical load average, we also display the top 10 processes consuming the most CPU
-                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=10)
+                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=False, max_processes=self.processes_to_display_if_error)
 
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
@@ -746,7 +750,7 @@ class LinuxMonitor:
                 out_msg = f"- 🚨 **Critical SWAP usage**\n- Total: {total_swap:.2f}GB\n- Used: {used_swap:.2f}GB ({percent_swap:.2f}%)\n- Free: {free_swap:.2f}GB\n⚠️ **Check what is using so much SWAP** ⚠️"
 
                 # If there is a critical SWAP/RAM usage, we also display the top 10 processes consuming the most RAM
-                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=10)
+                out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=self.processes_to_display_if_error)
 
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:

@@ -136,7 +136,7 @@ python3 -m linuxmonitor --list_commands --config_file config-example.json --node
 python3 -m linuxmonitor --execute_command CUSTOM_COMMAND_HERE --config_file config-example.json --nodebug
 
 # Execute a custom command with parameters (only for commands with "accept_parameters": true or a {arg1}/{args} placeholder)
-python3 -m linuxmonitor --execute_command unban_ip --parameters "1.2.3.4" --config_file config-example.json --nodebug
+python3 -m linuxmonitor --execute_command unban_ip --parameters "127.0.0.1" --config_file config-example.json --nodebug
 
 # Execute all custom commands
 python3 -m linuxmonitor --execute_all_commands --config_file config-example.json --nodebug

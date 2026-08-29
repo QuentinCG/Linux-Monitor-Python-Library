@@ -1,5 +1,6 @@
 {
     "basic_config": {
+        "processes_to_display_if_error": 5,
         "critical_load_average_percent": 90.0,
         "warning_load_average_percent": 80.0,
         "critical_cpu_percent": 90.0,
