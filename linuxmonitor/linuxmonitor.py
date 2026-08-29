@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2026)"
 __python_version__ = "3.+"
-__version__ = "1.5.12 (2026/08/29)"
+__version__ = "1.7.0 (2026/08/29)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -171,9 +171,9 @@ class LinuxMonitor:
                 raise ValueError("The scheduled tasks configuration must contain the 'max_duration_seconds_showing_same_error' key")
             self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks: int = schedule_check_for_issues_config.get('max_duration_seconds_showing_same_error') # type: ignore
 
-            if 'start_immediately' not in schedule_check_for_issues_config:
-                raise ValueError("The scheduled tasks configuration must contain the 'start_immediately' key")
-            self.start_scheduled_tasks_immediately: bool = schedule_check_for_issues_config.get('start_immediately') # type: ignore
+            if 'duration_in_sec_before_first_execution' not in schedule_check_for_issues_config:
+                raise ValueError("The scheduled tasks configuration must contain the 'duration_in_sec_before_first_execution' key")
+            self.start_scheduled_tasks_duration_in_sec_before_first_execution: int = schedule_check_for_issues_config.get('duration_in_sec_before_first_execution') # type: ignore
 
             if 'duration_in_sec_wait_between_each_execution' not in schedule_check_for_issues_config:
                 raise ValueError("The scheduled tasks configuration must contain the 'duration_in_sec_wait_between_each_execution' key")
@@ -185,9 +185,9 @@ class LinuxMonitor:
             if not isinstance(schedule_show_info_config, dict):
                 raise ValueError("The scheduled show info tasks configuration (scheduled_tasks_show_infos) must be a dictionary")
 
-            if 'start_immediately' not in schedule_show_info_config:
-                raise ValueError("The scheduled tasks configuration must contain the 'start_immediately' key")
-            self.start_scheduled_task_show_info_immediately: bool = schedule_show_info_config.get('start_immediately') # type: ignore
+            if 'duration_in_sec_before_first_execution' not in schedule_show_info_config:
+                raise ValueError("The scheduled tasks configuration must contain the 'duration_in_sec_before_first_execution' key")
+            self.start_scheduled_task_show_info_duration_in_sec_before_first_execution: int = schedule_show_info_config.get('duration_in_sec_before_first_execution') # type: ignore
 
             if 'duration_in_sec_wait_between_each_execution' not in schedule_show_info_config:
                 raise ValueError("The scheduled tasks configuration must contain the 'duration_in_sec_wait_between_each_execution' key")
@@ -2331,9 +2331,9 @@ class LinuxMonitor:
         datetime_last_commands_error_displayed: Optional[datetime] = None
         need_to_check_uptime: bool = True # No need to check uptime every time (since once ok, it can't be wrong)
 
-        if not self.start_scheduled_tasks_immediately:
-            logging.info(msg=f"Waiting for {self.duration_in_sec_wait_between_each_schedule_task_execution} seconds before starting the execution of {'private' if is_private else 'public'} scheduled tasks...")
-            await asyncio.sleep(delay=self.duration_in_sec_wait_between_each_schedule_task_execution)
+        if self.start_scheduled_tasks_duration_in_sec_before_first_execution > 0:
+            logging.info(msg=f"Waiting for {self.start_scheduled_tasks_duration_in_sec_before_first_execution} seconds before starting the execution of {'private' if is_private else 'public'} scheduled tasks...")
+            await asyncio.sleep(delay=self.start_scheduled_tasks_duration_in_sec_before_first_execution)
 
         while True:
             out_msg: str = ""
@@ -2683,9 +2683,9 @@ class LinuxMonitor:
         logging.info(msg=f"Waiting for 45 seconds before starting the execution of {'private' if is_private else 'public'} show info scheduled tasks to allow the discord bot and linux server to be ready...")
         await asyncio.sleep(delay=45)
 
-        if not self.start_scheduled_task_show_info_immediately:
-            logging.info(msg=f"Waiting for {self.duration_in_sec_wait_between_each_schedule_task_show_info_execution} seconds before starting the execution of {'private' if is_private else 'public'} show info scheduled tasks...")
-            await asyncio.sleep(delay=self.duration_in_sec_wait_between_each_schedule_task_show_info_execution)
+        if self.start_scheduled_task_show_info_duration_in_sec_before_first_execution > 0:
+            logging.info(msg=f"Waiting for {self.start_scheduled_task_show_info_duration_in_sec_before_first_execution} seconds before starting the execution of {'private' if is_private else 'public'} show info scheduled tasks...")
+            await asyncio.sleep(delay=self.start_scheduled_task_show_info_duration_in_sec_before_first_execution)
 
         while True:
             try:

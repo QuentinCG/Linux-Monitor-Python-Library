@@ -22,11 +22,11 @@
     },
     "scheduled_tasks_check_for_issues": {
         "max_duration_seconds_showing_same_error": 36000,
-        "start_immediately": true,
+        "duration_in_sec_before_first_execution": 3600,
         "duration_in_sec_wait_between_each_execution": 1800
     },
     "scheduled_tasks_show_infos": {
-        "start_immediately": false,
+        "duration_in_sec_before_first_execution": 36000,
         "duration_in_sec_wait_between_each_execution": 86400
     },
     "pings": [
