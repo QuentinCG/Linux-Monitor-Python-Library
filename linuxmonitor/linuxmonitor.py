@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2026)"
 __python_version__ = "3.+"
-__version__ = "1.7.0 (2026/08/29)"
+__version__ = "1.7.1 (2026/08/30)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -55,6 +55,17 @@ from http.client import responses
 import aiohttp
 
 class LinuxMonitor:
+    @staticmethod
+    def _format_size_in_gb_or_tb(size_in_gb: float) -> str:
+        """
+        Format a size in GB or TB for readability.
+
+        Values above 1000 GB are displayed in TB to keep the output compact.
+        """
+        if size_in_gb > 1000:
+            return f"{size_in_gb / 1000:.2f}TB"
+        return f"{size_in_gb:.2f}GB"
+
     def __init__(self, config_file: str, allow_scheduled_tasks_check_for_issues: bool, allow_scheduled_task_show_info: bool) -> None:
         """
         Linux Monitor class to monitor a Linux server.
@@ -374,13 +385,16 @@ class LinuxMonitor:
             total_gb: float = total / (2**30)
             used_gb: float = used / (2**30)
             free_gb: float = free / (2**30)
+            formatted_total = self._format_size_in_gb_or_tb(total_gb)
+            formatted_used = self._format_size_in_gb_or_tb(used_gb)
+            formatted_free = self._format_size_in_gb_or_tb(free_gb)
 
             percent_used: float = (used / total) * 100
             if critical_disk_percent != -1 and percent_used > critical_disk_percent:
                 out_msg = f"- 🚨 Critical disk {display_name} (`{disk_path}`) space:\n" \
-                        f"  - Total: {total_gb:.2f}GB\n" \
-                        f"  - Used: {used_gb:.2f}GB ({percent_used:.2f}%)\n" \
-                        f"  - Free: {free_gb:.2f}GB\n" \
+                        f"  - Total: {formatted_total}\n" \
+                        f"  - Used: {formatted_used} ({percent_used:.2f}%)\n" \
+                        f"  - Free: {formatted_free}\n" \
                         f"⚠️ **Free up disk space** ⚠️"
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
@@ -390,7 +404,7 @@ class LinuxMonitor:
                     icon = ""
                 else:
                     icon = "✅ "
-                out_msg = f"{icon} {display_name} (`{disk_path}`): {free_gb:.2f}GB free, {used_gb:.2f}GB used (**{percent_used:.2f}%** used on a total of {total_gb:.2f}GB)"
+                out_msg = f"{icon} {display_name} (`{disk_path}`): {formatted_free} free, {formatted_used} used (**{percent_used:.2f}%** used on a total of {formatted_total})"
                 logging.info(msg=out_msg)
         except Exception as e:
             out_msg = f"⚠️ **Error getting disk {display_name} (`{disk_path}`) space**:\n```sh\n{e}\n```"
@@ -488,15 +502,17 @@ class LinuxMonitor:
         try:
             total_used_bytes = self._get_folder_size_in_bytes(start_path=folder_path)
             total_used_giga = total_used_bytes / (2**30)
+            formatted_used = self._format_size_in_gb_or_tb(total_used_giga)
 
             percent_used: float = 0
             if critical_usage_giga > 0:
                 percent_used = (total_used_bytes / (critical_usage_giga * (2**30)) ) * 100
 
             if critical_usage_giga > 0 and total_used_bytes >= critical_usage_giga * (2**30):
+                formatted_critical_limit = self._format_size_in_gb_or_tb(critical_usage_giga)
                 out_msg = f"- 🚨 Critical folder {display_name} space (`{folder_path}`):\n" \
-                        f"  - Total allowed: {critical_usage_giga:.2f}GB\n" \
-                        f"  - Used: {total_used_giga:.2f}GB ({percent_used:.2f}%)\n" \
+                        f"  - Total allowed: {formatted_critical_limit}\n" \
+                        f"  - Used: {formatted_used} ({percent_used:.2f}%)\n" \
                         f"⚠️ **Please free up space in this folder** ⚠️"
                 logging.warning(msg=out_msg)
             elif not display_only_if_critical:
@@ -508,9 +524,10 @@ class LinuxMonitor:
                     icon = "✅ "
 
                 if critical_usage_giga > 0:
-                    out_msg = f"{icon}{display_name}: {total_used_giga:.2f}GB used (**{((total_used_bytes / (total_disk_giga * (2**30))) * 100):.2f}%** of total disk space, {percent_used:.2f}% used of a total allowed of {critical_usage_giga:.2f}GB)"
+                    formatted_critical_limit = self._format_size_in_gb_or_tb(critical_usage_giga)
+                    out_msg = f"{icon}{display_name}: {formatted_used} used (**{((total_used_bytes / (total_disk_giga * (2**30))) * 100):.2f}%** of total disk space, {percent_used:.2f}% used of a total allowed of {formatted_critical_limit})"
                 else:
-                    out_msg = f"{icon}{display_name}: {total_used_giga:.2f}GB used (**{((total_used_bytes / (total_disk_giga * (2**30))) * 100):.2f}%** of total disk space)"
+                    out_msg = f"{icon}{display_name}: {formatted_used} used (**{((total_used_bytes / (total_disk_giga * (2**30))) * 100):.2f}%** of total disk space)"
 
                 logging.info(msg=out_msg)
         except Exception as e:
@@ -656,9 +673,12 @@ class LinuxMonitor:
             total_ram: float = ram.total / (2**30)
             used_ram: float = ram.used / (2**30)
             free_ram: float = total_ram - used_ram
+            formatted_total_ram = self._format_size_in_gb_or_tb(total_ram)
+            formatted_used_ram = self._format_size_in_gb_or_tb(used_ram)
+            formatted_free_ram = self._format_size_in_gb_or_tb(free_ram)
             percent_ram: float = ram.percent
             if percent_ram >= self.critical_ram_percent:
-                out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {total_ram:.2f}GB\n- Used: {used_ram:.2f}GB ({percent_ram:.2f}%)\n- Free: {free_ram:.2f}GB\n⚠️ **Check what is using so much RAM** ⚠️"
+                out_msg = f"- 🚨 **Critical RAM usage**:\n- Total: {formatted_total_ram}\n- Used: {formatted_used_ram} ({percent_ram:.2f}%)\n- Free: {formatted_free_ram}\n⚠️ **Check what is using so much RAM** ⚠️"
 
                 # If there is a critical RAM usage, we also display the top 10 processes consuming the most RAM
                 out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=self.processes_to_display_if_error)
@@ -669,7 +689,7 @@ class LinuxMonitor:
                     icon = "⚠️"
                 else:
                     icon = "✅"
-                out_msg = f"- {icon} **{percent_ram:.2f}%** used on a total of {total_ram:.2f}GB ({free_ram:.2f}GB free, {used_ram:.2f}GB used)"
+                out_msg = f"- {icon} **{percent_ram:.2f}%** used on a total of {formatted_total_ram} ({formatted_free_ram} free, {formatted_used_ram} used)"
                 logging.info(msg=out_msg)
         except Exception as e:
             out_msg = f"⚠️ **Error getting RAM usage**:\n```sh\n{e}\n```"
@@ -745,9 +765,12 @@ class LinuxMonitor:
             total_swap: float = swap.total / (2**30)
             used_swap: float = swap.used / (2**30)
             free_swap: float = swap.free / (2**30)
+            formatted_total_swap = self._format_size_in_gb_or_tb(total_swap)
+            formatted_used_swap = self._format_size_in_gb_or_tb(used_swap)
+            formatted_free_swap = self._format_size_in_gb_or_tb(free_swap)
             percent_swap: float = swap.percent
             if percent_swap >= self.critical_swap_percent:
-                out_msg = f"- 🚨 **Critical SWAP usage**\n- Total: {total_swap:.2f}GB\n- Used: {used_swap:.2f}GB ({percent_swap:.2f}%)\n- Free: {free_swap:.2f}GB\n⚠️ **Check what is using so much SWAP** ⚠️"
+                out_msg = f"- 🚨 **Critical SWAP usage**\n- Total: {formatted_total_swap}\n- Used: {formatted_used_swap} ({percent_swap:.2f}%)\n- Free: {formatted_free_swap}\n⚠️ **Check what is using so much SWAP** ⚠️"
 
                 # If there is a critical SWAP/RAM usage, we also display the top 10 processes consuming the most RAM
                 out_msg += "\n" + await self.get_ordered_processes(get_non_consuming_processes=False, order_by_ram=True, max_processes=self.processes_to_display_if_error)
@@ -758,7 +781,7 @@ class LinuxMonitor:
                     icon = "⚠️"
                 else:
                     icon = "✅"
-                out_msg = f"- {icon} **{percent_swap:.2f}%** used on a total of {total_swap:.2f}GB ({free_swap:.2f}GB free, {used_swap:.2f}GB used)"
+                out_msg = f"- {icon} **{percent_swap:.2f}%** used on a total of {formatted_total_swap} ({formatted_free_swap} free, {formatted_used_swap} used)"
                 logging.info(msg=out_msg)
         except Exception as e:
             out_msg = f"- ⚠️ **Error getting SWAP usage**:\n```sh\n{e}\n```"
@@ -2006,15 +2029,17 @@ class LinuxMonitor:
                 if net_stats is None:
                     continue
 
-                # Convert bytes to GB for readability
+                # Convert bytes to GB for readability, then switch to TB above 1000 GB
                 receive_bytes: float = net_stats.bytes_recv / (1024 ** 3)
                 transmit_bytes: float = net_stats.bytes_sent / (1024 ** 3)
+                formatted_receive = self._format_size_in_gb_or_tb(receive_bytes)
+                formatted_transmit = self._format_size_in_gb_or_tb(transmit_bytes)
 
                 ip_str: str = ", ".join(ip_addresses) if ip_addresses else "N/A" # type: ignore
 
                 if network_usage != "":
                     network_usage += "\n"
-                network_usage += f"- {interface} ({ip_str}): ⬇️ {receive_bytes:,.2f} GB, ⬆️ {transmit_bytes:,.2f} GB"
+                network_usage += f"- {interface} ({ip_str}): ⬇️ {formatted_receive}, ⬆️ {formatted_transmit}"
 
             if network_usage != "":
                 network_usage = f"# 🌐 Network usage 🌐\n{network_usage}"
