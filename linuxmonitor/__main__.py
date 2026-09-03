@@ -118,7 +118,7 @@ def main() -> None:
     if args.certificates:
         handled = True
         print("Checking SSL certificates...")
-        out_msg: str = monitoring.check_all_certificates(is_private=True, display_only_if_critical=False)
+        out_msg: str = asyncio.run(monitoring.check_all_certificates(is_private=True, display_only_if_critical=False))
         print(out_msg)
 
     if args.reboot_server:

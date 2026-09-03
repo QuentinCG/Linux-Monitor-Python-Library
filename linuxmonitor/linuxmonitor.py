@@ -33,7 +33,7 @@ __email__ = "quentin@comte-gaz.com"
 __license__ = "MIT License"
 __copyright__ = "Copyright Quentin Comte-Gaz (2026)"
 __python_version__ = "3.+"
-__version__ = "1.7.2 (2026/08/30)"
+__version__ = "1.7.3 (2026/09/03)"
 __status__ = "Usable for any Linux project"
 
 import json
@@ -45,7 +45,7 @@ import psutil
 import os
 import ssl
 import socket
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import platform
 import re
 import shlex
@@ -77,7 +77,7 @@ class LinuxMonitor:
         :raises ValueError: If the configuration file is incorrect.
         """
         logging.debug(msg=f"Loading configuration file {config_file}...")
-        with open(file=config_file, mode='r') as file:
+        with open(file=config_file, mode='r', encoding='utf-8') as file:
             self.config = json.load(file)
 
 
@@ -171,6 +171,15 @@ class LinuxMonitor:
             self.processes_to_display_if_error = basic_config.get('processes_to_display_if_error') # type: ignore
 
         self.excluded_interfaces: List[str] = basic_config.get('excluded_interfaces', []) # type: ignore
+
+        # Default retry policy applied to every network check (ping, website, port, certificate).
+        # A single transient failure (packet loss, server restart, TLS handshake reset, ...) must not trigger an alert.
+        self.network_retry_count: int = int(basic_config.get('network_retry_count', 3)) # type: ignore
+        self.network_retry_delay_in_sec: float = float(basic_config.get('network_retry_delay_in_sec', 3.0)) # type: ignore
+        if self.network_retry_count < 1:
+            raise ValueError("The 'network_retry_count' basic configuration must be greater or equal to 1")
+        if self.network_retry_delay_in_sec < 0:
+            raise ValueError("The 'network_retry_delay_in_sec' basic configuration must be positive")
 
         # Get the scheduled tasks for issues configuration
         if self.allow_scheduled_tasks_check_for_issues:
@@ -918,30 +927,120 @@ class LinuxMonitor:
 
     #endregion
 
+    #region Network checks reliability helpers
+
+    # Browser-like user agent: some servers/WAF reject or throttle unknown clients, which produced false alerts.
+    HTTP_USER_AGENT: str = "Mozilla/5.0 (compatible; LinuxMonitor/1.0; +https://github.com/QuentinCG/Linux-Monitor-Python-Library)"
+
+    @staticmethod
+    def _is_transient_network_error(exception: BaseException) -> bool:
+        """
+        Tell if a network exception is likely temporary (and therefore worth retrying).
+
+        A certificate verification failure is a real configuration problem, never a transient glitch.
+        """
+        if isinstance(exception, ssl.SSLCertVerificationError):
+            return False
+
+        return isinstance(exception, (asyncio.TimeoutError, OSError, aiohttp.ClientError))
+
+    def _get_retry_policy(self, config_entry: Dict[str, Any]) -> Tuple[int, float]:
+        """
+        Get the retry policy (number of attempts and delay between attempts) of a configuration entry.
+
+        :param config_entry: The configuration entry (a ping/website/port/certificate item).
+
+        :return: A tuple containing the number of attempts and the delay in seconds between two attempts.
+        """
+        retry_count = int(config_entry.get('retry_count', self.network_retry_count))
+        retry_delay_in_sec = float(config_entry.get('retry_delay_in_sec', self.network_retry_delay_in_sec))
+
+        return max(1, retry_count), max(0.0, retry_delay_in_sec)
+
+    async def _run_with_retries(self, action: Callable[[], Awaitable[Tuple[bool, bool, str]]], retry_count: int,
+                                retry_delay_in_sec: float, display_name: str) -> Tuple[bool, str]:
+        """
+        Run an asynchronous check until it succeeds or until all attempts have been consumed.
+
+        Only failures flagged as transient are retried: a deterministic failure (invalid status code,
+        expired certificate, port open while it should be closed, ...) is reported immediately.
+
+        :param action: A coroutine factory returning a tuple (success, is_transient_failure, message).
+        :param retry_count: The maximum number of attempts.
+        :param retry_delay_in_sec: The base delay in seconds between two attempts (linear backoff).
+        :param display_name: The name of the check, used for logging only.
+
+        :return: A tuple containing the success state of the check and the result message.
+        """
+        attempts: int = max(1, retry_count)
+        last_msg: str = ""
+
+        for attempt in range(1, attempts + 1):
+            success, is_transient, last_msg = await action()
+
+            if success or not is_transient:
+                if success and attempt > 1:
+                    logging.info(msg=f"{display_name} succeeded on attempt {attempt}/{attempts}")
+                return success, last_msg
+
+            if attempt < attempts:
+                delay: float = retry_delay_in_sec * attempt
+                logging.warning(msg=f"Transient failure for {display_name} (attempt {attempt}/{attempts}), retrying in {delay:.1f}sec...")
+                if delay > 0:
+                    await asyncio.sleep(delay)
+
+        if attempts > 1 and last_msg != "":
+            last_msg += f"\n  - Still failing after {attempts} attempts."
+
+        return False, last_msg
+
+    #endregion
+
     #region Ping Websites
 
-    async def _ping_website(self, website: str, display_name: str, timeout_in_sec: int, display_only_if_critical: bool=False) -> str:
+    async def _ping_website(self, website: str, display_name: str, timeout_in_sec: int, display_only_if_critical: bool=False,
+                            ping_count: int = 3, retry_count: int = 3, retry_delay_in_sec: float = 3.0) -> str:
         """
         Ping a website.
 
+        Several ICMP packets are sent (the ping succeeds as soon as one answer comes back) and the whole
+        check is retried a few times, so that a single lost packet does not raise an alert.
+
         :param website: The website to ping.
         :param display_name: The name of the website to display in the output message.
+        :param timeout_in_sec: The timeout in seconds to wait for a single ping answer.
         :param display_only_if_critical: If True, the string result will only be returned if there is an error during execution.
+        :param ping_count: The number of ICMP packets to send per attempt.
+        :param retry_count: The maximum number of attempts before considering the website unreachable.
+        :param retry_delay_in_sec: The base delay in seconds between two attempts.
 
         :return: A string containing the result message.
         """
+        display_name = f"[{display_name}](https://{website})"
+
         try:
-            ping_command: str = f"ping -c 1 {website}"
-            display_name = f"[{display_name}](https://{website})"
+            ping_count = max(1, ping_count)
+            # -W: timeout to wait for one answer, -w: global deadline (avoids a command hanging for ping_count*timeout)
+            deadline_in_sec: int = max(timeout_in_sec, timeout_in_sec * ping_count)
+            ping_command: str = f"ping -c {ping_count} -W {timeout_in_sec} -w {deadline_in_sec} {shlex.quote(website)}"
 
-            start_time: float = time.time()
-            res, out_msg = await self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", show_only_std_and_exception=False, timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
-            end_time: float = time.time()
+            async def attempt() -> Tuple[bool, bool, str]:
+                start_time: float = time.time()
+                res, out_msg = await self.execute_and_verify(command=ping_command, display_name=f"ping {display_name}", show_only_std_and_exception=False, timeout_in_sec=deadline_in_sec + 5, display_only_if_critical=display_only_if_critical)
+                end_time: float = time.time()
 
-            if res == True and not display_only_if_critical:
-                res_ping_sec: str = "{:.2f}sec".format(end_time - start_time)
-                out_msg: str = f"✅ **{display_name} answered in {res_ping_sec}**."
-                logging.info(msg=out_msg)
+                if res == True:
+                    if display_only_if_critical:
+                        return True, False, ""
+                    res_ping_sec: str = "{:.2f}sec".format(end_time - start_time)
+                    out_msg = f"✅ **{display_name} answered in {res_ping_sec}**."
+                    logging.info(msg=out_msg)
+                    return True, False, out_msg
+
+                # A failed ping (no answer or timeout) is always considered as potentially transient
+                return False, True, out_msg
+
+            _, out_msg = await self._run_with_retries(action=attempt, retry_count=retry_count, retry_delay_in_sec=retry_delay_in_sec, display_name=f"ping {website}")
 
             return out_msg
         except Exception as e:
@@ -962,7 +1061,11 @@ class LinuxMonitor:
         for ping_config in self.config['pings']:
             if is_private or is_private == ping_config['is_private']:
                 timeout_in_sec: int = ping_config.get('timeout_in_sec', 5)
-                result: str = await self._ping_website(website=ping_config['website'], display_name=ping_config['display_name'], timeout_in_sec=timeout_in_sec, display_only_if_critical=display_only_if_critical)
+                ping_count: int = ping_config.get('ping_count', 3)
+                retry_count, retry_delay_in_sec = self._get_retry_policy(config_entry=ping_config)
+                result: str = await self._ping_website(website=ping_config['website'], display_name=ping_config['display_name'], timeout_in_sec=timeout_in_sec,
+                                                       display_only_if_critical=display_only_if_critical, ping_count=ping_count,
+                                                       retry_count=retry_count, retry_delay_in_sec=retry_delay_in_sec)
                 if result:
                     if out_msg:
                         out_msg += "\n"
@@ -980,42 +1083,49 @@ class LinuxMonitor:
     async def _check_website(self, url: str, display_name: str, show_content_if_issue: bool, service_name: str = "",
                              timeout_in_sec: int = 5, auth_type: Optional[str] = None, username: Optional[str] = None,
                              password: Optional[str] = None, token: Optional[str] = None, additional_allowed_statuses: List[int] = [],
-                             display_only_if_critical: bool=False) -> Tuple[bool, str]:
-        try:
-            display_name = f"[{display_name}]({url})"
+                             display_only_if_critical: bool=False, retry_count: int = 3, retry_delay_in_sec: float = 3.0) -> Tuple[bool, str]:
+        """
+        Check that a website answers with an acceptable status code.
 
-            auth = None
-            headers: Dict[str, str] = {}
+        Connection/TLS/timeout errors and 5xx-429 answers are retried before raising an alert, since
+        they are most of the time caused by a temporary hiccup (server reload, packet loss, ...).
 
-            # Select the appropriate authentication method
-            if auth_type == 'basic' and username and password:
-                auth = aiohttp.BasicAuth(username, password)  # Use aiohttp.BasicAuth for basic authentication
-            elif auth_type == 'digest' and username and password:
-                return False, f"❌ **Digest authentication not supported, cannot check {display_name}**."
-            elif auth_type == 'bearer' and token:
-                headers = {'Authorization': f'Bearer {token}'}
+        :return: A tuple containing the success state of the check and the result message.
+        """
+        display_name = f"[{display_name}]({url})"
 
-            # Create an aiohttp client session to make the request
-            async with aiohttp.ClientSession() as session:
-                start_time: float = time.time()
-                async with session.get(url, auth=auth, headers=headers, timeout=timeout_in_sec) as response:
-                    end_time: float = time.time()
-                    # Default allowed status codes (200-299)
-                    allowed_statuses = list(range(200, 300))
+        auth = None
+        headers: Dict[str, str] = {'User-Agent': self.HTTP_USER_AGENT}
 
-                    # Include any additional allowed status codes if provided
-                    if additional_allowed_statuses:
-                        allowed_statuses += additional_allowed_statuses
+        # Select the appropriate authentication method
+        if auth_type == 'basic' and username and password:
+            auth = aiohttp.BasicAuth(username, password)  # Use aiohttp.BasicAuth for basic authentication
+        elif auth_type == 'digest' and username and password:
+            return False, f"❌ **Digest authentication not supported, cannot check {display_name}**."
+        elif auth_type == 'bearer' and token:
+            headers['Authorization'] = f'Bearer {token}'
 
-                    # Check if the status code is within the allowed list
-                    if response.status in allowed_statuses:
-                        if not display_only_if_critical:
+        # Default allowed status codes (200-299) plus any additional allowed status codes if provided
+        allowed_statuses: List[int] = list(range(200, 300)) + list(additional_allowed_statuses or [])
+
+        # The timeout applies to the whole request (connection + TLS handshake + answer)
+        timeout = aiohttp.ClientTimeout(total=timeout_in_sec, connect=timeout_in_sec, sock_connect=timeout_in_sec, sock_read=timeout_in_sec)
+
+        async def attempt() -> Tuple[bool, bool, str]:
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    start_time: float = time.time()
+                    async with session.get(url, auth=auth, headers=headers) as response:
+                        end_time: float = time.time()
+
+                        # Check if the status code is within the allowed list
+                        if response.status in allowed_statuses:
+                            if display_only_if_critical:
+                                return True, False, ""
                             out_msg: str = f"✅ **{display_name} answered with valid status code {response.status}** in {end_time - start_time:.2f}sec."
                             logging.info(msg=out_msg)
-                            return True, out_msg
-                        else:
-                            return True, ""
-                    else:
+                            return True, False, out_msg
+
                         # Get the reason phrase (e.g., "Unauthorized" for 401)
                         status_reason: str = responses.get(response.status, "Unknown status")
                         out_msg = f"❌ **{display_name} answered with invalid status code {response.status} - {status_reason}**."
@@ -1023,13 +1133,24 @@ class LinuxMonitor:
                             content: str = (await response.text()).replace('`', '"').strip()
                             out_msg += f"\n```sh\n{content}\n```"
                         logging.warning(msg=out_msg)
-                        return False, out_msg
-        except asyncio.TimeoutError:
-            out_msg = f"⚠️ **Error checking {display_name}: Timeout**"
-            return False, out_msg
-        except Exception as e:
-            out_msg = f"⚠️ **Error checking {display_name}**:\n```sh\n{e}\n```"
-            return False, out_msg
+
+                        # Server errors and rate limiting are usually temporary, a 4xx is not
+                        is_transient: bool = response.status >= 500 or response.status == 429
+                        return False, is_transient, out_msg
+            except aiohttp.ClientConnectorCertificateError as e:
+                out_msg = f"❌ **{display_name} has an invalid SSL certificate**:\n```sh\n{e.certificate_error}\n```"
+                logging.warning(msg=out_msg)
+                return False, False, out_msg
+            except asyncio.TimeoutError:
+                out_msg = f"⚠️ **Error checking {display_name}: No answer in less than {timeout_in_sec}sec**"
+                logging.warning(msg=out_msg)
+                return False, True, out_msg
+            except Exception as e:
+                out_msg = f"⚠️ **Error checking {display_name}**:\n```sh\n{type(e).__name__}: {e}\n```"
+                logging.warning(msg=out_msg)
+                return False, self._is_transient_network_error(exception=e), out_msg
+
+        return await self._run_with_retries(action=attempt, retry_count=retry_count, retry_delay_in_sec=retry_delay_in_sec, display_name=f"website {url}")
 
     async def check_all_websites(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         try:
@@ -1046,12 +1167,14 @@ class LinuxMonitor:
                     password: Optional[str] = website_config.get('password', None)
                     token: Optional[str] = website_config.get('token', None)
                     additional_allowed_statuses: List[int] = website_config.get('additional_allowed_statuses', [])
+                    retry_count, retry_delay_in_sec = self._get_retry_policy(config_entry=website_config)
 
                     res, msg = await self._check_website(url=url, display_name=display_name, timeout_in_sec=timeout_in_sec,
                                                        show_content_if_issue=show_content_if_issue,
                                                        auth_type=auth_type, username=username, password=password, token=token,
                                                        additional_allowed_statuses=additional_allowed_statuses,
-                                                       display_only_if_critical=display_only_if_critical)
+                                                       display_only_if_critical=display_only_if_critical,
+                                                       retry_count=retry_count, retry_delay_in_sec=retry_delay_in_sec)
                     if msg != "":
                         if out_msg:
                             out_msg += "\n"
@@ -1358,90 +1481,118 @@ class LinuxMonitor:
 
     #region SSL Certificates
 
-    def _get_certificate_info(self, hostname: str): # type: ignore
+    def _get_certificate_info(self, hostname: str, port: int = 443, timeout_in_sec: float = 5.0) -> Dict[str, Any]:
         """
-        Get the certificate information for a specific hostname.
+        Get the certificate information for a specific hostname (blocking call).
 
         :param hostname: The hostname to get the certificate information.
+        :param port: The TLS port to connect to.
+        :param timeout_in_sec: The timeout in seconds for the connection and the TLS handshake.
 
-        :return: A dictionary containing the certificate information.
+        :return: A dictionary containing the certificate information. The 'status' key is one of:
+                 - 'valid': the certificate was retrieved and verified
+                 - 'invalid': the certificate was retrieved but is not trustworthy (expired, self-signed, wrong hostname, ...)
+                 - 'unreachable': the certificate could NOT be retrieved (network/TLS failure), its real state is unknown
         """
         context: ssl.SSLContext = ssl.create_default_context()
-        conn: ssl.SSLSocket = context.wrap_socket(sock=socket.socket(socket.AF_INET), server_hostname=hostname)
 
         try:
-            conn.connect((hostname, 443))
-            cert = conn.getpeercert()
+            with socket.create_connection(address=(hostname, port), timeout=timeout_in_sec) as sock:
+                sock.settimeout(timeout_in_sec)
+                with context.wrap_socket(sock=sock, server_hostname=hostname) as conn:
+                    cert = conn.getpeercert()
 
-            # Get the certificate expiration date
+            # Get the certificate expiration date (always expressed in GMT)
             expiry_date: datetime = datetime.strptime(cert.get("notAfter"), '%b %d %H:%M:%S %Y GMT') # type: ignore
 
-            # Get today's date
-            today: datetime = datetime.today()
+            # Calculate the number of remaining days (using UTC to match the certificate timezone)
+            remaining_days: int = (expiry_date - datetime.now(tz=timezone.utc).replace(tzinfo=None)).days
 
-            # Calculate the number of remaining days
-            remaining_days: int = (expiry_date - today).days
-
-            # Check if the certificate is still valid
-            is_valid: bool = remaining_days > 0
-
-            logging.info(msg=f"Certificate for {hostname} is valid: {is_valid}, remaining days: {remaining_days}")
+            logging.info(msg=f"Certificate for {hostname} is valid, remaining days: {remaining_days}")
             return {
-                'is_valid': is_valid,
+                'status': 'valid',
                 'remaining_days': remaining_days,
                 'expiry_date': expiry_date,
                 'error': None
-            } # type: ignore
+            }
 
-        except Exception as e:
-            logging.exception(msg=f"Error getting certificate info for {hostname}:\n{e}")
+        except ssl.SSLCertVerificationError as e:
+            # The certificate was received but rejected: this is a real certificate problem, not a network glitch
+            logging.warning(msg=f"Invalid certificate for {hostname}: {e}")
             return {
-                'hostname': hostname,
-                'is_valid': False,
+                'status': 'invalid',
                 'remaining_days': 0,
                 'expiry_date': None,
-                'error': str(e)
-            } # type: ignore
+                'error': e.verify_message or str(e)
+            }
 
-        finally:
-            conn.close()
+        except Exception as e:
+            # Connection refused, timeout, TLS handshake interrupted, DNS failure, ...: the certificate state is unknown
+            logging.warning(msg=f"Unable to retrieve the certificate of {hostname}: {type(e).__name__}: {e}")
+            return {
+                'status': 'unreachable',
+                'remaining_days': 0,
+                'expiry_date': None,
+                'error': f"{type(e).__name__}: {e}"
+            }
 
-    def _check_certificate(self, hostname: str, display_name: str, warning_remaining_days: int, critical_remaining_days: int, display_only_if_critical: bool=False) -> str:
+    async def _check_certificate(self, hostname: str, display_name: str, warning_remaining_days: int, critical_remaining_days: int,
+                                 display_only_if_critical: bool=False, timeout_in_sec: float = 5.0,
+                                 retry_count: int = 3, retry_delay_in_sec: float = 3.0) -> str:
         """
         Check the SSL certificate for a specific hostname.
+
+        A certificate that cannot be retrieved is reported as "unable to check" (and retried first),
+        it is never reported as expired since its real expiration date is unknown.
 
         :param hostname: The hostname to check the SSL certificate.
         :param display_name: The name of the website to display in the output message.
         :param warning_remaining_days: The warning remaining days for the SSL certificate.
         :param critical_remaining_days: The critical remaining days for the SSL certificate.
         :param display_only_if_critical: If True, the string result will only be returned if there is an error during execution.
+        :param timeout_in_sec: The timeout in seconds for the connection and the TLS handshake.
+        :param retry_count: The maximum number of attempts before considering the certificate not retrievable.
+        :param retry_delay_in_sec: The base delay in seconds between two attempts.
 
         :return: A string containing the result message.
         """
-        out_msg: str = ""
+        link: str = f"[{display_name}](https://{hostname})"
+
         try:
-            cert_infos = self._get_certificate_info(hostname=hostname) # type: ignore
+            loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
 
-            remaining_days: int = 0
-            if isinstance(cert_infos["remaining_days"], int):
-                remaining_days = cert_infos["remaining_days"]
+            async def attempt() -> Tuple[bool, bool, str]:
+                # The TLS handshake is blocking, run it in a thread to keep the event loop responsive
+                cert_infos: Dict[str, Any] = await loop.run_in_executor(None, self._get_certificate_info, hostname, 443, timeout_in_sec)
+                status: str = cert_infos['status']
 
-            expiry_date: datetime = datetime.today()
-            if isinstance(cert_infos["expiry_date"], datetime):
-                expiry_date = cert_infos["expiry_date"]
+                if status == 'unreachable':
+                    out_msg: str = f"- ⚠️ **Unable to check the SSL certificate of {link}** (host unreachable, the certificate itself may still be valid)\n" \
+                                   f"  - Reason: `{cert_infos['error']}`"
+                    return False, True, out_msg
 
-            if not cert_infos["is_valid"]:
-                out_msg = f"- ❌ **Invalid SSL certificate [{display_name}](https://{hostname})**\n" \
-                        f"  - **Certificate expired on {expiry_date.strftime('%d/%m/%Y')}**\n" \
-                        f"  - **Renew the SSL certificate immediately**"
-                logging.warning(msg=out_msg)
-            elif critical_remaining_days > 0 and remaining_days < critical_remaining_days:
-                out_msg = f"- ⚠️ **SSL certificate [{display_name}](https://{hostname}) will expire soon**:\n" \
-                        f"  - Certificate expires on {expiry_date.strftime('%d/%m/%Y')}\n" \
-                        f"  - **{remaining_days} remaining days (which is in less than {critical_remaining_days} days)**\n" \
-                        f"  - **Renew the SSL certificate quickly**"
-                logging.warning(msg=out_msg)
-            elif not display_only_if_critical:
+                if status == 'invalid':
+                    out_msg = f"- ❌ **Invalid SSL certificate {link}**\n" \
+                              f"  - Reason: `{cert_infos['error']}`\n" \
+                              f"  - **Check and renew the SSL certificate immediately**"
+                    logging.warning(msg=out_msg)
+                    return False, False, out_msg
+
+                remaining_days: int = cert_infos['remaining_days']
+                expiry_date: datetime = cert_infos['expiry_date']
+
+                if critical_remaining_days > 0 and remaining_days < critical_remaining_days:
+                    out_msg = f"- ⚠️ **SSL certificate {link} will expire soon**:\n" \
+                              f"  - Certificate expires on {expiry_date.strftime('%d/%m/%Y')}\n" \
+                              f"  - **{remaining_days} remaining days (which is in less than {critical_remaining_days} days)**\n" \
+                              f"  - **Renew the SSL certificate quickly**"
+                    logging.warning(msg=out_msg)
+                    # A soon-to-expire certificate is a real issue, retrying would not change anything
+                    return False, False, out_msg
+
+                if display_only_if_critical:
+                    return True, False, ""
+
                 if warning_remaining_days > 0 and remaining_days < warning_remaining_days:
                     icon: str = "⚠️ "
                 elif critical_remaining_days <= 0 and warning_remaining_days <= 0:
@@ -1449,19 +1600,19 @@ class LinuxMonitor:
                 else:
                     icon = "✅ "
 
-                out_msg = f"- {icon}[{display_name}](https://{hostname}): {remaining_days} remaining days (expires on {expiry_date.strftime('%d/%m/%Y')}))"
+                out_msg = f"- {icon}{link}: {remaining_days} remaining days (expires on {expiry_date.strftime('%d/%m/%Y')}))"
                 logging.info(msg=out_msg)
+                return True, False, out_msg
 
-            # Display the error of retrieving the certificate if there is one
-            if cert_infos["error"]:
-                out_msg += f"\n  - Reason: `{cert_infos['error']}`"
+            _, out_msg = await self._run_with_retries(action=attempt, retry_count=retry_count, retry_delay_in_sec=retry_delay_in_sec, display_name=f"certificate {hostname}")
+
+            return out_msg
         except Exception as e:
-            out_msg = f"- ⚠️ **Error checking SSL certificate of [{display_name}](https://{hostname})**:\n```sh\n{e}\n```"
+            out_msg = f"- ⚠️ **Error checking SSL certificate of {link}**:\n```sh\n{e}\n```"
             logging.exception(msg=out_msg)
+            return out_msg
 
-        return out_msg
-
-    def check_all_certificates(self, is_private: bool, display_only_if_critical: bool=False) -> str:
+    async def check_all_certificates(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         """
         Check all SSL certificates configured in the JSON configuration file.
 
@@ -1479,10 +1630,14 @@ class LinuxMonitor:
                     # Verify that warning_remaining_days & critical_remaining_days exist, otherwise use -1
                     warning_remaining_days = cert_config.get('warning_remaining_days', -1)
                     critical_remaining_days = cert_config.get('critical_remaining_days', -1)
+                    timeout_in_sec = float(cert_config.get('timeout_in_sec', 5))
+                    retry_count, retry_delay_in_sec = self._get_retry_policy(config_entry=cert_config)
 
                     # We only check what is needed
                     if not display_only_if_critical or (display_only_if_critical and critical_remaining_days != -1):
-                        result: str = self._check_certificate(hostname=hostname, display_name=display_name, warning_remaining_days=warning_remaining_days, critical_remaining_days=critical_remaining_days, display_only_if_critical=display_only_if_critical)
+                        result: str = await self._check_certificate(hostname=hostname, display_name=display_name, warning_remaining_days=warning_remaining_days,
+                                                                    critical_remaining_days=critical_remaining_days, display_only_if_critical=display_only_if_critical,
+                                                                    timeout_in_sec=timeout_in_sec, retry_count=retry_count, retry_delay_in_sec=retry_delay_in_sec)
                         if result and result != "":
                             if out_msg != "":
                                 out_msg += "\n"
@@ -1739,26 +1894,49 @@ class LinuxMonitor:
 
     #region Ports
 
-    def _is_port_in_required_state(self, display_name: str, port: int, host: str = "localhost", timeout_in_sec: float = 2, want_port_to_be_open: bool = True) -> Tuple[bool, str]:
+    def _is_port_open(self, host: str, port: int, timeout_in_sec: float) -> bool:
+        """
+        Tell if a TCP port accepts connections (blocking call).
+
+        :param host: The host to check the port.
+        :param port: The port number to check.
+        :param timeout_in_sec: The timeout in seconds to check the port.
+
+        :return: True if the port is open.
+        """
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout_in_sec)
+            return sock.connect_ex((host, port)) == 0
+
+    async def _is_port_in_required_state(self, display_name: str, port: int, host: str = "localhost", timeout_in_sec: float = 2,
+                                         want_port_to_be_open: bool = True, retry_count: int = 3, retry_delay_in_sec: float = 3.0) -> Tuple[bool, str]:
         """
         Check if a specific port is in the required state (open or closed).
+
+        A port expected to be open but found closed is retried before raising an alert (the service may
+        just be restarting), while a port that should be closed and is open is reported immediately.
 
         :param display_name: The name of the port to display in the output message.
         :param port: The port number to check.
         :param host: The host to check the port.
         :param timeout_in_sec: The timeout in seconds to check the port.
         :param want_port_to_be_open: If True, the port should be open, otherwise it should be closed.
+        :param retry_count: The maximum number of attempts.
+        :param retry_delay_in_sec: The base delay in seconds between two attempts.
 
         :return: A tuple containing a boolean indicating if the port is in the required state and a string containing the result message.
         """
-        out_msg: str = ""
+        loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
 
-        res: bool = False
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(timeout_in_sec)
-            res_port_open: bool = sock.connect_ex((host, port)) == 0
-            res = res_port_open == want_port_to_be_open
+        async def attempt() -> Tuple[bool, bool, str]:
+            try:
+                res_port_open: bool = await loop.run_in_executor(None, self._is_port_open, host, port, timeout_in_sec)
+            except Exception as e:
+                out_msg: str = f"⚠️ **Error checking {display_name} port**:\n```sh\n{type(e).__name__}: {e}\n```"
+                logging.warning(msg=out_msg)
+                return False, self._is_transient_network_error(exception=e), out_msg
+
+            res: bool = res_port_open == want_port_to_be_open
 
             if res_port_open:
                 if want_port_to_be_open:
@@ -1775,12 +1953,10 @@ class LinuxMonitor:
                     out_msg = f"✅🔒 {display_name} (Port {port}) **closed (and should be closed)**"
                     logging.info(msg=out_msg)
 
-            sock.close()
-        except Exception as e:
-            out_msg = f"⚠️ **Error checking {display_name} port**:\n```sh\n{e}\n```"
-            logging.exception(msg=out_msg)
+            # Only a port expected to be open but currently closed may be a temporary state
+            return res, (not res) and want_port_to_be_open, out_msg
 
-        return res, out_msg
+        return await self._run_with_retries(action=attempt, retry_count=retry_count, retry_delay_in_sec=retry_delay_in_sec, display_name=f"port {host}:{port}")
 
     async def check_all_ports(self, is_private: bool, display_only_if_critical: bool=False) -> str:
         """
@@ -1798,14 +1974,16 @@ class LinuxMonitor:
                     port: int = port_config['port']
                     display_name: str = port_config.get('display_name', f"Port {port}")
                     host: str = port_config.get('host', 'localhost')
-                    timeout_in_sec: float = port_config.get('timeout_in_sec', 10)
+                    timeout_in_sec: float = port_config.get('timeout_in_sec', 5)
                     want_port_to_be_open: bool = port_config.get('want_port_to_be_open', True)
+                    retry_count, retry_delay_in_sec = self._get_retry_policy(config_entry=port_config)
 
                     service_name_to_restart: str = ""
                     if want_port_to_be_open:
                         service_name_to_restart = port_config.get('service_name_to_restart', "")
 
-                    result, result_msg = self._is_port_in_required_state(port=port, host=host, timeout_in_sec=timeout_in_sec, want_port_to_be_open=want_port_to_be_open, display_name=display_name)
+                    result, result_msg = await self._is_port_in_required_state(port=port, host=host, timeout_in_sec=timeout_in_sec, want_port_to_be_open=want_port_to_be_open,
+                                                                               display_name=display_name, retry_count=retry_count, retry_delay_in_sec=retry_delay_in_sec)
                     if result_msg != "" and (not display_only_if_critical or not result):
                         if out_msg != "":
                             out_msg += "\n"
@@ -2575,7 +2753,7 @@ class LinuxMonitor:
                     logging.info(msg="- ✅ All folder usage are OK.")
 
                 # Certificates
-                msg = self.check_all_certificates(is_private=is_private, display_only_if_critical=True)
+                msg = await self.check_all_certificates(is_private=is_private, display_only_if_critical=True)
                 if msg != "":
                     logging.warning(msg=msg)
                     if datetime_last_certificates_error_displayed is None or ((datetime.now() - datetime_last_certificates_error_displayed).total_seconds() > self.max_duration_seconds_showing_same_error_again_in_scheduled_tasks):
@@ -2739,7 +2917,7 @@ class LinuxMonitor:
                     out_msg += msg
 
                 # Certificates
-                msg = self.check_all_certificates(is_private=is_private, display_only_if_critical=False)
+                msg = await self.check_all_certificates(is_private=is_private, display_only_if_critical=False)
                 if msg != "":
                     if out_msg != "":
                         out_msg += "\n"
